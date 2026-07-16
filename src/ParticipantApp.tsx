@@ -1,38 +1,60 @@
 import {useEffect, useMemo, useState} from 'react';
+import type {KeyboardEvent} from 'react';
 import {
   ORDER, PAGE_SIZE, PAGES, Q, SCALE, SCORE, TYPES,
   blendNote, pawPath, score
-} from '../assets/data.js';
-import {Compatibility} from './components/Compatibility.jsx';
-import {DogFace} from './components/DogFace.jsx';
-import {ScoreChart} from './components/ScoreChart.jsx';
-import {DevBar} from './dev/DevBar.jsx';
-import {saveResult} from './lib/db.js';
-import {mapUrl, parseRoom} from './lib/room.js';
+} from '../assets/data.ts';
+// 아래 Result 컴포넌트와 이름이 겹쳐 별칭을 쓴다.
+import type {Result as ScoreResult} from '../assets/data.ts';
+import {Compatibility} from './components/Compatibility.tsx';
+import {DogFace} from './components/DogFace.tsx';
+import {ScoreChart} from './components/ScoreChart.tsx';
+import {DevBar} from './dev/DevBar.tsx';
+import {saveResult} from './lib/db.ts';
+import type {GroupRow} from './lib/db.ts';
+import {mapUrl} from './lib/room.ts';
 
-const EMPTY_ANSWERS = () => new Array(Q.length).fill(0);
+const EMPTY_ANSWERS = (): number[] => new Array(Q.length).fill(0);
 
-function restoreProgress(key) {
+interface Progress {
+  nickname: string;
+  answers: number[];
+  page: number;
+}
+
+interface SaveStatus {
+  status: 'idle' | 'saving' | 'ok' | 'error';
+  error: string;
+}
+
+function restoreProgress(key: string): Progress | null {
   try {
     const raw = sessionStorage.getItem(key);
     if (!raw) return null;
-    const data = JSON.parse(raw);
+    const data = JSON.parse(raw) as Partial<Progress>;
     if (!Array.isArray(data.answers) || data.answers.length !== Q.length) return null;
     return {
       nickname: String(data.nickname || '').slice(0, 16),
       answers: data.answers.map(value => (value >= 1 && value <= 5 ? value : 0)),
-      page: Math.min(Math.max(0, data.page | 0), PAGES - 1)
+      page: Math.min(Math.max(0, (data.page ?? 0) | 0), PAGES - 1)
     };
   } catch {
     return null;
   }
 }
 
-function Intro({room, nickname, onNicknameChange, onStart}) {
+interface IntroProps {
+  group: GroupRow;
+  nickname: string;
+  onNicknameChange: (value: string) => void;
+  onStart: () => void;
+}
+
+function Intro({group, nickname, onNicknameChange, onStart}: IntroProps) {
   const ready = nickname.trim().length > 0;
   return (
     <section>
-      <p className="eyebrow">방 {room}</p>
+      <p className="eyebrow">그룹 {group.name} · {group.id}</p>
       <div className="hero-dogs" aria-hidden="true">
         {ORDER.map(type => <DogFace type={type} size={62} key={type} />)}
       </div>
@@ -48,7 +70,7 @@ function Intro({room, nickname, onNicknameChange, onStart}) {
           <input
             id="nick"
             className="input"
-            maxLength="16"
+            maxLength={16}
             autoComplete="off"
             enterKeyHint="go"
             placeholder="예: 커피두잔, 삼팀장, 뚱이"
@@ -73,18 +95,26 @@ function Intro({room, nickname, onNicknameChange, onStart}) {
   );
 }
 
-function Quiz({answers, page, onAnswer, onPrevious, onNext}) {
+interface QuizProps {
+  answers: number[];
+  page: number;
+  onAnswer: (index: number, value: number) => void;
+  onPrevious: () => void;
+  onNext: () => void;
+}
+
+function Quiz({answers, page, onAnswer, onPrevious, onNext}: QuizProps) {
   const start = page * PAGE_SIZE;
   const indexes = Q.map((_, index) => index).slice(start, start + PAGE_SIZE);
   const done = indexes.filter(index => answers[index]).length;
   const paw = pawPath();
 
-  const handleArrow = (event, questionIndex, value) => {
-    const direction = {ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1}[event.key];
+  const handleArrow = (event: KeyboardEvent<HTMLButtonElement>, questionIndex: number, value: number) => {
+    const direction = ({ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1} as Record<string, number>)[event.key];
     if (!direction) return;
     event.preventDefault();
     const nextValue = ((value - 1 + direction + SCALE.length) % SCALE.length) + 1;
-    const button = event.currentTarget.parentElement.querySelector(`[data-value="${nextValue}"]`);
+    const button = event.currentTarget.parentElement?.querySelector<HTMLButtonElement>(`[data-value="${nextValue}"]`);
     button?.focus();
     onAnswer(questionIndex, nextValue);
   };
@@ -151,7 +181,7 @@ function Quiz({answers, page, onAnswer, onPrevious, onNext}) {
   );
 }
 
-function SaveState({state, onRetry}) {
+function SaveStateBar({state, onRetry}: {state: SaveStatus; onRetry: () => void}) {
   if (state.status === 'saving') {
     return <div className="savebar" aria-live="polite">결과를 저장하는 중…</div>;
   }
@@ -172,7 +202,15 @@ function SaveState({state, onRetry}) {
   );
 }
 
-function Result({result, saveState, room, onRetry, onAgain}) {
+interface ResultProps {
+  result: ScoreResult;
+  saveState: SaveStatus;
+  groupId: string;
+  onRetry: () => void;
+  onAgain: () => void;
+}
+
+function Result({result, saveState, groupId, onRetry, onAgain}: ResultProps) {
   const type = TYPES[result.primary];
   const blend = blendNote(result.code);
 
@@ -225,14 +263,14 @@ function Result({result, saveState, room, onRetry, onAgain}) {
       </section>
 
       <Compatibility primary={result.primary} />
-      <SaveState state={saveState} onRetry={onRetry} />
+      <SaveStateBar state={saveState} onRetry={onRetry} />
 
       {saveState.status === 'ok' && (
         <>
           <div className="callout center" style={{marginTop: 18}}>
             이제 <b>앞 화면을 보세요.</b> 같은 방 사람들의 관계도가 실시간으로 그려집니다.
           </div>
-          <a href={mapUrl(room)} className="btn block" style={{marginTop: 12}}>관계도 보기 🐾</a>
+          <a href={mapUrl(groupId)} className="btn block" style={{marginTop: 12}}>그룹 관계도 보기 🐾</a>
         </>
       )}
 
@@ -245,16 +283,16 @@ function Result({result, saveState, room, onRetry, onAgain}) {
   );
 }
 
-export function ParticipantApp() {
-  const room = useMemo(() => parseRoom(), []);
+export function ParticipantApp({group}: {group: GroupRow}) {
+  const room = group.id;
   const storeKey = `dogtype:${room}`;
   const restored = useMemo(() => restoreProgress(storeKey), [storeKey]);
   const [nickname, setNickname] = useState(restored?.nickname || '');
-  const [answers, setAnswers] = useState(restored?.answers || EMPTY_ANSWERS);
+  const [answers, setAnswers] = useState<number[]>(restored?.answers || EMPTY_ANSWERS);
   const [page, setPage] = useState(restored?.page || 0);
   const [screen, setScreen] = useState(restored?.nickname && restored.answers.some(Boolean) ? 'quiz' : 'intro');
-  const [result, setResult] = useState(null);
-  const [saveState, setSaveState] = useState({status: 'idle', error: ''});
+  const [result, setResult] = useState<ScoreResult | null>(null);
+  const [saveState, setSaveState] = useState<SaveStatus>({status: 'idle', error: ''});
 
   useEffect(() => {
     if (!nickname || screen === 'result') return;
@@ -273,7 +311,7 @@ export function ParticipantApp() {
     try { sessionStorage.removeItem(storeKey); } catch { /* noop */ }
   };
 
-  const persist = async (nextResult, nextNickname = nickname) => {
+  const persist = async (nextResult: ScoreResult, nextNickname = nickname) => {
     setSaveState({status: 'saving', error: ''});
     const response = await saveResult({
       room,
@@ -318,7 +356,7 @@ export function ParticipantApp() {
     <main className="wrap">
       {screen === 'intro' && (
         <Intro
-          room={room}
+          group={group}
           nickname={nickname}
           onNicknameChange={setNickname}
           onStart={() => {
@@ -349,7 +387,7 @@ export function ParticipantApp() {
         <Result
           result={result}
           saveState={saveState}
-          room={room}
+          groupId={room}
           onRetry={() => persist(result)}
           onAgain={reset}
         />
@@ -368,4 +406,3 @@ export function ParticipantApp() {
     </main>
   );
 }
-

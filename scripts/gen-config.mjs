@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// .env (또는 프로세스 환경변수) → src/config.js 생성.
+// .env (또는 프로세스 환경변수) → src/config.ts 생성.
 // Vite가 이 모듈을 브라우저 번들에 포함한다. anon 키는 공개 키이며 RLS가 방어선이다.
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const ENV_PATH = resolve(ROOT, '.env');
-const OUT_PATH = resolve(ROOT, 'src/config.js');
+const OUT_PATH = resolve(ROOT, 'src/config.ts');
 
 function parseEnv(text) {
   const out = {};
@@ -66,11 +66,16 @@ try {
 
 const body = `// 자동 생성 파일 — 직접 수정하지 마세요.
 // .env 를 고친 뒤 \`npm run config\` 를 다시 실행하세요. (scripts/gen-config.mjs)
-export const CONFIG = {
+export interface Config {
+  url: string;
+  anonKey: string;
+}
+
+export const CONFIG: Config = {
   url:     ${JSON.stringify(url.replace(/\/$/, ''))},
   anonKey: ${JSON.stringify(anonKey)}
 };
 `;
 
 writeFileSync(OUT_PATH, body, 'utf8');
-console.log(`  ✓ src/config.js 생성 완료 → ${url.replace(/\/$/, '')}`);
+console.log(`  ✓ src/config.ts 생성 완료 → ${url.replace(/\/$/, '')}`);

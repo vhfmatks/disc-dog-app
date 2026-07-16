@@ -1,0 +1,4 @@
+[functions.admin-groups]
+# 신규 publishable key는 게이트웨이의 legacy JWT 검사 대상이 아니다.
+# 이 함수는 요청 본문의 ADMIN_PASSWORD를 자체 검증한다.
+verify_jwt = false

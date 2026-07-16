@@ -1,16 +1,17 @@
-import {ORDER, SCORE, TYPES} from '../../assets/data.js';
+import {ORDER, SCORE, TYPES} from '../../assets/data.ts';
+import type {Result} from '../../assets/data.ts';
 
 const WIDTH = 560;
 const HEIGHT = 292;
 const PLOT = {left: 46, right: 20, top: 24, bottom: 218};
 const TICKS = [0, 15, 30, 45, 60, 75];
 
-export function ScoreChart({result}) {
+export function ScoreChart({result}: {result: Result}) {
   const chartWidth = WIDTH - PLOT.left - PLOT.right;
   const chartHeight = PLOT.bottom - PLOT.top;
-  const x = index => PLOT.left + (chartWidth * index / (ORDER.length - 1));
-  const y = value => PLOT.bottom - (chartHeight * value / SCORE.totalMax);
-  const path = values => values
+  const x = (index: number) => PLOT.left + (chartWidth * index / (ORDER.length - 1));
+  const y = (value: number) => PLOT.bottom - (chartHeight * value / SCORE.totalMax);
+  const path = (values: number[]) => values
     .map((value, index) => `${index === 0 ? 'M' : 'L'} ${x(index).toFixed(1)} ${y(value).toFixed(1)}`)
     .join(' ');
 
@@ -81,4 +82,3 @@ export function ScoreChart({result}) {
     </div>
   );
 }
-

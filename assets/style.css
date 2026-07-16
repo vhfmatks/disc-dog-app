@@ -632,6 +632,73 @@ button { font: inherit; color: inherit; }
 
 .empty { text-align: center; padding: 60px 20px; color: var(--muted); }
 
+/* ── 그룹 홈 / 관리자 ──────────────────────────── */
+
+.home-wrap, .admin-login { padding-top: min(14vh, 120px); }
+.home-wrap .card, .admin-login .card { padding: 28px; }
+.admin-lead { margin-top: 8px; }
+.admin-entry {
+  display: block;
+  margin-top: 18px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+.route-error { margin-top: min(14vh, 120px); text-align: center; }
+.route-error p { margin-top: 10px; }
+.route-error code, .admin-group code {
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--muted);
+  font: 700 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.form-error { margin: 0 0 12px; color: #B52D27; font-size: 13.5px; }
+
+.admin-wrap { max-width: 980px; margin: 0 auto; padding: 28px 20px 64px; }
+.admin-header, .admin-list-head, .admin-group-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+.admin-header { align-items: center; margin-bottom: 22px; }
+.admin-create { display: grid; grid-template-columns: 1fr auto; gap: 12px 20px; align-items: end; }
+.admin-create > div:first-child { grid-column: 1 / -1; }
+.admin-fields { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(240px, 1.3fr); gap: 12px; }
+.admin-fields .field { margin: 0; }
+.admin-error { margin: 14px 2px 0; }
+.admin-list { display: grid; gap: 12px; margin-top: 28px; }
+.admin-list-head { align-items: baseline; }
+.admin-list-head h2 { font-size: 19px; }
+.admin-list-head span { color: var(--muted); font-size: 13px; }
+.admin-group h3 { margin-top: 7px; font-size: 19px; }
+.admin-group .small { margin-top: 4px; }
+.admin-actions, .admin-links, .admin-edit { display: flex; gap: 8px; flex-wrap: wrap; }
+.admin-actions .btn, .admin-edit .btn { min-height: 38px; padding: 7px 14px; font-size: 13px; }
+.btn.danger { border-color: color-mix(in srgb, var(--d) 35%, var(--line)); background: transparent; color: var(--d); }
+.admin-links { margin-top: 15px; padding-top: 13px; border-top: 1px solid var(--line); }
+.admin-links a, .admin-links button {
+  min-height: 34px;
+  padding: 6px 11px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+.admin-edit { margin-top: 9px; }
+.admin-edit .input { min-height: 40px; width: min(360px, 100%); padding-block: 7px; }
+
+@media (max-width: 700px) {
+  .admin-create { grid-template-columns: 1fr; }
+  .admin-fields { grid-template-columns: 1fr; }
+  .admin-header, .admin-group-main { align-items: stretch; flex-direction: column; }
+}
+
 @media (max-width: 900px) {
   .map-top { flex-direction: column; }
 }

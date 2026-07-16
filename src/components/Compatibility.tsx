@@ -1,16 +1,21 @@
 import {useEffect, useRef, useState} from 'react';
-import {GUIDE, HOW, ORDER, TYPES, rel, why} from '../../assets/data.js';
-import {DogFace} from './DogFace.jsx';
+import type {CSSProperties} from 'react';
+import {GUIDE, HOW, ORDER, TYPES, rel, why} from '../../assets/data.ts';
+import type {Relation, TypeCode} from '../../assets/data.ts';
+import {DogFace} from './DogFace.tsx';
 
-const RELATION_LABEL = {
+const RELATION_LABEL: Record<Relation, string> = {
   same: '닮은 결',
   good: '빠른 연결',
   bad: '번역 필요'
 };
 
-export function Compatibility({primary}) {
-  const [selected, setSelected] = useState(null);
-  const dialogRef = useRef(null);
+// CSS 변수는 React.CSSProperties에 없어서 캐스팅해 넘긴다.
+const typeColor = (hex: string) => ({'--type-color': hex}) as CSSProperties;
+
+export function Compatibility({primary}: {primary: TypeCode}) {
+  const [selected, setSelected] = useState<TypeCode | null>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -41,7 +46,7 @@ export function Compatibility({primary}) {
           return (
             <article
               className={`compat-card ${isSelected ? 'selected' : ''}`}
-              style={{'--type-color': type.hex}}
+              style={typeColor(type.hex)}
               key={typeCode}
             >
               <div className="compat-top">
@@ -94,13 +99,13 @@ export function Compatibility({primary}) {
         ref={dialogRef}
         className="compat-advice"
         aria-labelledby="compat-advice-title"
-        style={selectedType ? {'--type-color': selectedType.hex} : undefined}
+        style={selectedType ? typeColor(selectedType.hex) : undefined}
         onClose={() => setSelected(null)}
         onClick={event => {
           if (event.target === dialogRef.current) dialogRef.current.close();
         }}
       >
-        {selectedType && guide && (
+        {selected && selectedType && guide && (
           <form method="dialog">
             <button className="compat-dialog-close" value="close" aria-label="닫기">×</button>
             <div className="compat-advice-head">
@@ -157,4 +162,3 @@ export function Compatibility({primary}) {
     </section>
   );
 }
-

@@ -1,9 +1,10 @@
 import {useState} from 'react';
+import type {Question, TypeCode} from '../../assets/data.ts';
 
-const TYPE_LABEL = {D: '진돗개', I: '비숑', S: '골든', C: '콜리'};
+const TYPE_LABEL: Record<TypeCode, string> = {D: '진돗개', I: '비숑', S: '골든', C: '콜리'};
 const randomScore = () => 1 + Math.floor(Math.random() * 5);
 
-function answersFor(questions, type) {
+function answersFor(questions: Question[], type?: TypeCode): number[] {
   return questions.map(question => {
     if (!type) return randomScore();
     return question.t === type
@@ -12,7 +13,16 @@ function answersFor(questions, type) {
   });
 }
 
-export function DevBar({questions, page, answers, onFill, onSubmitBias, onReset}) {
+interface DevBarProps {
+  questions: Question[];
+  page: number;
+  answers: number[];
+  onFill: (answers: number[]) => void;
+  onSubmitBias: (payload: {nickname: string; answers: number[]}) => void;
+  onReset: () => void;
+}
+
+export function DevBar({questions, page, answers, onFill, onSubmitBias, onReset}: DevBarProps) {
   const [visible, setVisible] = useState(true);
   if (!visible) return null;
 
@@ -29,7 +39,7 @@ export function DevBar({questions, page, answers, onFill, onSubmitBias, onReset}
     <div className="devbar">
       <span className="devbar-tag">DEV</span>
       <button type="button" title="완전 랜덤으로 60문항만 채우기 (결과는 열지 않음)" onClick={() => onFill(answersFor(questions))}>🎲 랜덤</button>
-      {Object.keys(TYPE_LABEL).map(type => (
+      {(Object.keys(TYPE_LABEL) as TypeCode[]).map(type => (
         <button
           type="button"
           title={`${TYPE_LABEL[type]}(${type})가 나오게 채우고 결과로 이동`}
@@ -48,4 +58,3 @@ export function DevBar({questions, page, answers, onFill, onSubmitBias, onReset}
     </div>
   );
 }
-

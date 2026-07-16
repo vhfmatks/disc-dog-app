@@ -7,7 +7,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const src = readFileSync(resolve(ROOT, 'assets/data.js'), 'utf8');
+const src = readFileSync(resolve(ROOT, 'assets/data.ts'), 'utf8');
 const m = [...src.matchAll(/\{t:'([DISC])',p:\s*(-?1),x:'([^']+)'\}/g)];
 
 const errors = [];

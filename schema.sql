@@ -6,9 +6,23 @@
 
 -- ── 테이블 ────────────────────────────────────────────────────────
 
+create table if not exists public.groups (
+  id         text        primary key check (id ~ '^[a-z0-9-]{3,24}$'),
+  name       text        not null check (char_length(btrim(name)) between 1 and 50),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- 새 설치에서 바로 확인할 수 있는 기본 그룹. 관리자 페이지에서 지워도 됩니다.
+insert into public.groups (id, name)
+values ('demo', '데모 그룹')
+on conflict (id) do nothing;
+
 create table if not exists public.results (
   id           uuid        primary key default gen_random_uuid(),
-  room         text        not null check (room ~ '^[a-z0-9-]{3,24}$'),
+  room         text        not null check (room ~ '^[a-z0-9-]{3,24}$')
+                           constraint results_room_group_fkey
+                           references public.groups(id) on delete cascade,
   nickname     text        not null check (char_length(btrim(nickname)) between 1 and 16),
   code         text        not null check (code ~ '^[DISC]{1,2}$'),
   primary_type char(1)     not null check (primary_type in ('D','I','S','C')),
@@ -21,6 +35,43 @@ create table if not exists public.results (
   expires_at   timestamptz not null default now() + interval '24 hours'
 );
 
+-- groups 도입 전 results에 있던 방은 기존 링크가 끊기지 않도록 그룹으로 승격한다.
+insert into public.groups (id, name)
+select distinct room, '기존 그룹 · ' || room
+from public.results
+on conflict (id) do nothing;
+
+-- 기존 results 테이블에는 위 create table의 FK가 반영되지 않으므로 한 번만 추가한다.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.results'::regclass
+      and conname = 'results_room_group_fkey'
+  ) then
+    alter table public.results
+      add constraint results_room_group_fkey
+      foreign key (room) references public.groups(id) on delete cascade;
+  end if;
+end;
+$$;
+
+create or replace function public.set_group_updated_at()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_groups_updated_at on public.groups;
+create trigger trg_groups_updated_at
+  before update on public.groups
+  for each row execute function public.set_group_updated_at();
+
 -- 60문항 버전부터 매력 문항이 유형별 5개→10개로 늘어 상한이 25→50이 된다.
 -- 기존 테이블에도 적용되도록 자동 생성된 체크 제약을 다시 만든다. 하한 5는
 -- 만료 전인 40문항 버전 결과와의 24시간 호환을 위해 유지한다.
@@ -32,6 +83,17 @@ create index if not exists results_room_created_idx on public.results (room, cre
 create index if not exists results_expires_idx      on public.results (expires_at);
 
 -- ── RLS ───────────────────────────────────────────────────────────
+-- 그룹은 링크 유효성 확인을 위해 공개 조회만 허용합니다. 생성·수정·삭제 정책은
+-- 일부러 만들지 않습니다. 관리자 Edge Function의 service role만 변경할 수 있습니다.
+
+alter table public.groups enable row level security;
+
+drop policy if exists groups_select_public on public.groups;
+create policy groups_select_public
+  on public.groups for select
+  to anon, authenticated
+  using (true);
+
 -- 참가자는 결과를 넣고 볼 수만 있습니다.
 -- 남의 결과를 고치거나 지울 수 없고, expires_at을 늘려 영구 보존시킬 수도 없습니다.
 --

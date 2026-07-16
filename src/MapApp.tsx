@@ -1,8 +1,10 @@
 import {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
-import {SCORE, TYPES, gapNote, pawPath, rel} from '../assets/data.js';
-import {DogFace, SvgDogFace} from './components/DogFace.jsx';
-import {fetchRoom, watchRoom} from './lib/db.js';
-import {parseRoom} from './lib/room.js';
+import {SCORE, TYPES, gapNote, pawPath, rel} from '../assets/data.ts';
+import type {Relation, TypeCode} from '../assets/data.ts';
+import {DogFace, SvgDogFace} from './components/DogFace.tsx';
+import {fetchRoom, watchRoom} from './lib/db.ts';
+import type {GroupRow, ResultRow} from './lib/db.ts';
+import {participantUrl} from './lib/room.ts';
 
 const W = 900;
 const H = 600;
@@ -13,18 +15,25 @@ const RX = CX - PAD;
 const RY = CY - PAD;
 const PAW_D = pawPath();
 
-const QUADS = [
+const QUADS: Array<{type: TypeCode; qx: number; qy: number}> = [
   {type: 'D', qx: -1, qy: 1},
   {type: 'I', qx: 1, qy: 1},
   {type: 'S', qx: 1, qy: -1},
   {type: 'C', qx: -1, qy: -1}
 ];
 
-const sx = x => CX + x * RX;
-const sy = y => CY - y * RY;
+const sx = (x: number) => CX + x * RX;
+const sy = (y: number) => CY - y * RY;
 
-function layout(rows) {
-  const bucket = new Map();
+/** 화면 좌표와 겹침 보정을 얹은 행. */
+interface PlacedRow extends ResultRow {
+  px: number;
+  py: number;
+  stack: number;
+}
+
+function layout(rows: ResultRow[]): PlacedRow[] {
+  const bucket = new Map<string, number>();
   return rows.map(row => {
     const px = sx(row.x);
     const py = sy(row.y);
@@ -35,13 +44,16 @@ function layout(rows) {
   });
 }
 
-function isLinked(selected, row) {
+function isLinked(selected: PlacedRow | null, row: PlacedRow | null): boolean {
   if (!selected || !row || row.id === selected.id) return false;
   return rel(selected.primary_type, row.primary_type) !== 'same';
 }
 
-function slotsFor(width) {
-  const slots = [[0, 26], [0, -24]];
+/** 라벨을 놓아볼 후보 위치 [dx, dy]. */
+type Slot = [number, number];
+
+function slotsFor(width: number): Slot[] {
+  const slots: Slot[] = [[0, 26], [0, -24]];
   for (const radius of [30, 42, 54, 66]) {
     for (let angle = 0; angle < 12; angle += 1) {
       const theta = (angle / 12) * 2 * Math.PI;
@@ -54,14 +66,14 @@ function slotsFor(width) {
   return slots;
 }
 
-function useRoom(room) {
-  const [rows, setRows] = useState([]);
+function useRoom(room: string) {
+  const [rows, setRows] = useState<ResultRow[]>([]);
   const [status, setStatus] = useState({message: '연결 중…', error: false});
 
   useEffect(() => {
     let active = true;
 
-    const addRows = incoming => {
+    const addRows = (incoming: ResultRow[]) => {
       setRows(current => {
         const ids = new Set(current.map(row => row.id));
         const additions = incoming.filter(row => !ids.has(row.id));
@@ -82,7 +94,9 @@ function useRoom(room) {
     load();
     const unsubscribe = watchRoom(
       room,
-      row => active && addRows([row]),
+      row => {
+        if (active) addRows([row]);
+      },
       realtimeStatus => {
         if (!active) return;
         if (realtimeStatus === 'SUBSCRIBED') {
@@ -104,9 +118,22 @@ function useRoom(room) {
   return {rows, status};
 }
 
-function RelationMap({rows, selectedId, onSelect}) {
-  const nodesRef = useRef(null);
-  const seen = useRef(new Set());
+interface Rect {
+  x1: number;
+  x2: number;
+  y1: number;
+  y2: number;
+}
+
+interface RelationMapProps {
+  rows: ResultRow[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}
+
+function RelationMap({rows, selectedId, onSelect}: RelationMapProps) {
+  const nodesRef = useRef<SVGGElement>(null);
+  const seen = useRef<Set<string>>(new Set());
   const placed = useMemo(() => layout(rows), [rows]);
   const selected = placed.find(row => row.id === selectedId) || null;
   const freshIds = new Set(placed.filter(row => !seen.current.has(row.id)).map(row => row.id));
@@ -116,7 +143,7 @@ function RelationMap({rows, selectedId, onSelect}) {
   }, [freshIds]);
 
   const painted = useMemo(() => [...placed].sort((a, b) => {
-    const rank = row => {
+    const rank = (row: PlacedRow) => {
       if (row.id === selectedId) return 2;
       if (isLinked(selected, row)) return 1;
       return 0;
@@ -128,33 +155,34 @@ function RelationMap({rows, selectedId, onSelect}) {
     const box = nodesRef.current;
     if (!box) return;
 
-    const taken = [];
-    const hits = candidate => taken.some(other => (
+    const taken: Rect[] = [];
+    const hits = (candidate: Rect) => taken.some(other => (
       candidate.x1 < other.x2 && candidate.x2 > other.x1 &&
       candidate.y1 < other.y2 && candidate.y2 > other.y1
     ));
-    const rank = element => element.classList.contains('sel') ? 0 : element.classList.contains('linked') ? 1 : 2;
+    const rank = (element: Element) => element.classList.contains('sel') ? 0 : element.classList.contains('linked') ? 1 : 2;
     const order = new Map(placed.map((row, index) => [row.id, index]));
+    const orderOf = (element: SVGGElement) => order.get(element.dataset.id ?? '') ?? 0;
 
-    for (const label of box.querySelectorAll('.node-label')) {
-      label.setAttribute('x', 0);
-      label.setAttribute('y', label.dataset.base);
+    for (const label of box.querySelectorAll<SVGTextElement>('.node-label')) {
+      label.setAttribute('x', '0');
+      label.setAttribute('y', label.dataset.base ?? '0');
     }
 
-    const elements = [...box.querySelectorAll('.node')]
+    const elements = [...box.querySelectorAll<SVGGElement>('.node')]
       .filter(element => !element.classList.contains('dim'))
-      .sort((a, b) => rank(a) - rank(b) || order.get(a.dataset.id) - order.get(b.dataset.id));
+      .sort((a, b) => rank(a) - rank(b) || orderOf(a) - orderOf(b));
 
     for (const element of elements) {
       const row = placed.find(item => item.id === element.dataset.id);
-      const label = element.querySelector('.node-label');
+      const label = element.querySelector<SVGTextElement>('.node-label');
       if (!row || !label) continue;
 
       const base = Number(label.dataset.base);
       const bounds = label.getBBox();
       const width = bounds.width;
       const height = bounds.height;
-      const at = ([centerX, centerY]) => ({
+      const at = ([centerX, centerY]: Slot): Rect => ({
         x1: row.px + centerX - width / 2 - 3,
         x2: row.px + centerX + width / 2 + 3,
         y1: row.py + centerY - height / 2 - 2,
@@ -170,11 +198,16 @@ function RelationMap({rows, selectedId, onSelect}) {
     }
   }, [painted, placed, selectedId]);
 
+  // 선 좌표를 여기서 굳혀 두면 아래 JSX에서 selected가 null인지 다시 따지지 않아도 된다.
   const links = selected
     ? placed.filter(row => row.id !== selected.id).flatMap(row => {
       const kind = rel(selected.primary_type, row.primary_type);
       if (kind === 'same') return [];
-      return [{row, kind}];
+      return [{
+        id: row.id,
+        kind,
+        d: `M${selected.px.toFixed(1)} ${selected.py.toFixed(1)} L${row.px.toFixed(1)} ${row.py.toFixed(1)}`
+      }];
     })
     : [];
 
@@ -205,12 +238,8 @@ function RelationMap({rows, selectedId, onSelect}) {
       </g>
 
       <g id="links">
-        {links.map(({row, kind}) => (
-          <path
-            className={`link ${kind}`}
-            d={`M${selected.px.toFixed(1)} ${selected.py.toFixed(1)} L${row.px.toFixed(1)} ${row.py.toFixed(1)}`}
-            key={row.id}
-          />
+        {links.map(link => (
+          <path className={`link ${link.kind}`} d={link.d} key={link.id} />
         ))}
       </g>
 
@@ -226,7 +255,7 @@ function RelationMap({rows, selectedId, onSelect}) {
               className={classes}
               data-id={row.id}
               transform={`translate(${row.px.toFixed(1)},${row.py.toFixed(1)})`}
-              tabIndex="0"
+              tabIndex={0}
               role="button"
               aria-label={`${row.nickname} ${row.code}`}
               onClick={() => onSelect(row.id)}
@@ -251,7 +280,7 @@ function RelationMap({rows, selectedId, onSelect}) {
   );
 }
 
-function ParticipantDetail({row, rows}) {
+function ParticipantDetail({row, rows}: {row: ResultRow | null; rows: ResultRow[]}) {
   if (!row) {
     return rows.length
       ? <p className="small muted center">발바닥이나 아래 이름표를 누르면 그 사람 기준으로 관계선이 그려집니다.</p>
@@ -262,7 +291,7 @@ function ParticipantDetail({row, rows}) {
   const intensity = row.totals?.[row.primary_type] ?? (row.charm + row.bark);
   const charmItems = row.totals?._version === SCORE.version ? SCORE.charmItems : 5;
   const gap = Math.round(((row.charm / charmItems) - (row.bark / SCORE.barkItems)) * 10) / 10;
-  const counts = {good: [], bad: [], same: []};
+  const counts: Record<Relation, string[]> = {good: [], bad: [], same: []};
   rows.forEach(other => {
     if (other.id !== row.id) counts[rel(row.primary_type, other.primary_type)].push(other.nickname);
   });
@@ -310,21 +339,22 @@ function MapGuide() {
   );
 }
 
-export function MapApp() {
-  const room = useMemo(() => parseRoom(), []);
+export function MapApp({group}: {group: GroupRow}) {
+  const room = group.id;
   const {rows, status} = useRoom(room);
-  const [selectedId, setSelectedId] = useState(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = rows.find(row => row.id === selectedId) || null;
 
   return (
     <main className="map-wrap">
       <div className="map-top">
         <div style={{flex: 1, minWidth: 240}}>
-          <p className="eyebrow">지금 참가</p>
+          <p className="eyebrow">{group.name} · {group.id}</p>
           <div className="counter"><span className="n">{rows.length}</span> 명</div>
           <p className="small muted" style={{marginTop: 4, color: status.error ? 'var(--d)' : undefined}}>{status.message}</p>
           <div style={{display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap'}}>
             <button type="button" className="btn ghost" onClick={() => setSelectedId(null)}>선택 해제</button>
+            <a className="btn ghost" href={participantUrl(group.id)}>참가 링크 열기</a>
           </div>
         </div>
       </div>
@@ -360,4 +390,3 @@ export function MapApp() {
     </main>
   );
 }
-

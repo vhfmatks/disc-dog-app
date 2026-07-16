@@ -5,14 +5,16 @@
 
 | | |
 |---|---|
-| 참가자 | `index.html` — 폰 (QR로 진입) |
-| 진행자 | `map.html` — 데스크톱 + 프로젝터 |
+| 참가자 | `/<groupId>` — 폰 (그룹 링크로 진입) |
+| 진행자 | `/<groupId>/map` — 데스크톱 + 프로젝터 |
+| 관리자 | `/admin` — 비밀번호 로그인 + 그룹 관리 |
 | 백엔드 | Supabase (Postgres + RLS + Realtime) |
 | 호스팅 | GitHub Pages |
-| 프런트엔드 | Vite + React |
+| 프런트엔드 | Vite + React + TypeScript |
 
-Vite 다중 페이지 빌드로 참가자 화면과 진행자 화면을 각각 생성합니다. 기존 주소인
-`index.html?r=<방코드>`와 `map.html?r=<방코드>`는 그대로 유지됩니다.
+한 개의 React 앱이 URL을 보고 참가자·진행자·관리자 화면을 나눕니다. 결과는 Group ID별로
+저장·조회·Realtime 구독이 분리됩니다. 예전 `index.html?r=...`, `map.html?r=...`,
+`#/?r=...` 링크도 계속 열립니다.
 
 ---
 
@@ -26,10 +28,13 @@ npm install
 npm run dev               # http://localhost:8080
 ```
 
-- 참가자 화면 → http://localhost:8080/index.html?r=demo
-- 진행자 화면 → http://localhost:8080/map.html?r=demo
+- 관리자 화면 → http://localhost:8080/admin
+- 참가자 화면 → http://localhost:8080/demo
+- 진행자 화면 → http://localhost:8080/demo/map
 
 프로덕션 번들은 `npm run build`로 `dist/`에 생성되며, `npm run preview`로 확인할 수 있습니다.
+`build`는 설정 생성 → 문항 검증 → 타입 검사 → Vite 빌드 순으로 돌기 때문에 타입 오류가 있으면
+번들이 만들어지지 않습니다. 타입만 따로 보려면 `npm run typecheck`.
 
 ---
 
@@ -38,12 +43,17 @@ npm run dev               # http://localhost:8080
 ```bash
 SUPABASE_URL=https://YOUR-PROJECT-REF.supabase.co
 SUPABASE_ANON_KEY=YOUR-ANON-PUBLIC-KEY
+ADMIN_PASSWORD=충분히-긴-관리자-비밀번호
 ```
 
 Supabase → **Project Settings → Data API** 에서 `Project URL` 과 `anon public` 키를 복사합니다.
 
-`.env` 와 빌드 전에 생성되는 `src/config.js` 는 **커밋되지 않습니다**(`.gitignore`).
+`.env` 와 빌드 전에 생성되는 `src/config.ts` 는 **커밋되지 않습니다**(`.gitignore`).
 `npm run dev`와 `npm run build`가 설정 생성과 문항 검증을 자동으로 수행합니다.
+
+`ADMIN_PASSWORD`는 프런트엔드 번들에 넣지 않습니다. `/admin`에서 입력한 값은 HTTPS로
+`admin-groups` Edge Function에 전달되고 서버의 secret과 비교됩니다. 따라서 `.env`에 쓴 것과
+같은 값을 Supabase **Edge Functions → Secrets**에도 `ADMIN_PASSWORD` 이름으로 등록해야 합니다.
 
 > **anon 키가 브라우저에 노출되는 것은 정상입니다.** 숨기려 하지 마세요. RLS가 방어선입니다.
 > `service_role` 키는 절대 넣지 마세요 — `gen-config.mjs` 가 감지하면 실행을 거부합니다.
@@ -58,11 +68,22 @@ Supabase → **Project Settings → Data API** 에서 `Project URL` 과 `anon pu
      RLS가 만료된 행을 숨기므로 세미나 진행에는 지장이 없습니다. 다만 행이 실제로 삭제되진 않습니다.
 3. **SQL Editor** 에 `schema.sql` 전체를 붙여넣고 Run (재실행해도 안전)
 4. **Project Settings → Data API** 에서 URL / anon 키를 복사 → `.env`
+5. **Edge Functions → Secrets** 에 `.env`와 동일한 `ADMIN_PASSWORD` 등록
+6. 관리자 함수를 배포
+
+   ```bash
+   npx supabase functions deploy admin-groups --project-ref YOUR-PROJECT-REF
+   ```
+
+비밀번호를 바꾸면 로컬 `.env`와 Edge Function secret을 모두 바꾸세요. secret 변경은 함수 재배포
+없이 즉시 적용됩니다.
 
 ### 만들어지는 것
 
-- `public.results` 테이블 + 인덱스 2개
+- `public.groups` 테이블 + 공개 조회 RLS (변경은 Edge Function만 가능)
+- `public.results` 테이블 + Group ID 외래키 + 인덱스 2개
 - RLS: **SELECT**(만료 전만) / **INSERT**(24시간 초과 금지) 만 허용. UPDATE·DELETE는 정책 없음 = 전면 거부
+- `admin-groups` Edge Function: 관리자 비밀번호 검증 + 그룹 생성·이름 수정·삭제
 - 방당 200명 상한 트리거
 - Realtime publication
 - 매시 17분 만료 행 삭제 (`pg_cron`)
@@ -86,28 +107,35 @@ Supabase → **Project Settings → Data API** 에서 `Project URL` 과 `anon pu
 ## 프로젝트 구조
 
 ```text
-index.html                 참가자 React 진입점
-map.html                   진행자 React 진입점
-src/ParticipantApp.jsx     인트로 → 60문항 → 결과 → 저장
-src/MapApp.jsx             Supabase 조회·Realtime → 관계도
+index.html                 React 진입점
+public/404.html            GitHub Pages clean URL 복구
+src/main.tsx               /admin, /<groupId>, /<groupId>/map 라우팅
+src/AdminApp.tsx           관리자 로그인 + 그룹 CRUD
+src/ParticipantApp.tsx     인트로 → 60문항 → 결과 → 저장
+src/MapApp.tsx             Supabase 조회·Realtime → 관계도
 src/components/            강아지, 차트, 궁합 컴포넌트
 src/lib/                   방 URL과 Supabase 접근 계층
-assets/data.js             문항·채점·유형·관계 규칙
+assets/data.ts             문항·채점·유형·관계 규칙
 assets/style.css           두 화면의 공용 스타일
 schema.sql                 Supabase 스키마와 60문항 마이그레이션
+supabase/functions/        관리자 그룹 API (Edge Function)
+tsconfig.json              TypeScript 설정 (strict)
 ```
 
 ---
 
-## 방 코드
+## 그룹 URL
 
 ```
-?r=ax0716      [a-z0-9-]{3,24} · 미지정 시 demo
+/ax0716          참가자 설문
+/ax0716/map      해당 그룹 닉네임·결과 관계도
+/admin           그룹 생성·이름 수정·삭제
 ```
 
-세미나마다 바꾸세요. 안 바꾸면 지난 회차 참가자와 섞입니다.
+Group ID는 `[a-z0-9-]{3,24}` 형식이며 `admin`, `map`은 예약어입니다. `/admin`에서 세미나마다
+그룹을 추가한 뒤 참가 링크를 전달하세요. 그룹을 삭제하면 그 그룹의 결과도 함께 삭제됩니다.
 
-진행자가 `.../map.html?r=ax0716` 을 열면 QR이 참가자를 자동으로 같은 방에 넣습니다.
+Group ID가 다르면 닉네임, 결과 조회, Realtime 채널, 진행 중인 브라우저 응답이 서로 섞이지 않습니다.
 
 ---
 
@@ -115,13 +143,16 @@ schema.sql                 Supabase 스키마와 60문항 마이그레이션
 
 - [ ] **진행자 노트북에서 `github.io` 가 열리는가** ← 제일 흔한 사고. 안 열리면 폰 테더링.
 - [ ] 참가자 LTE로도 열리는가
-- [ ] 방 코드를 이번 세미나용으로 바꿨는가
+- [ ] `/admin`에서 이번 세미나 그룹을 만들었는가
+- [ ] 참가자에게 `/<groupId>` 링크를 전달했는가
 - [ ] 프로젝터 뒷자리에서 닉네임 글씨가 읽히는가
 
-진행 흐름: `map.html?r=<방코드>` 를 띄우고 → QR 촬영 유도 → 강아지가 튀어나오는 걸 같이 보다가
+진행 흐름: `/<groupId>/map` 을 띄우고 → 참가 링크/QR 촬영 유도 → 강아지가 튀어나오는 걸 같이 보다가
 → 2명 이상 모이면 나타나는 **"이 지도를 읽는 법"** 카드를 대본 삼아 토론.
 
 ### 즉시 삭제
+
+`/admin`의 그룹 카드에서 **삭제**하면 그룹과 해당 결과가 모두 삭제됩니다. SQL로 결과만 비우려면:
 
 ```sql
 delete from public.results where room = 'ax0716';
@@ -144,14 +175,14 @@ delete from public.results where room = 'ax0716';
 | ✕ | 숨기기 (새로고침하면 다시 나옴) |
 
 지도를 빠르게 테스트하려면 `D` `I` `S` `C` 버튼을 사용하세요. 매번 다른 닉네임으로 저장되어 노드가 쌓입니다.
-`?r=devtest` 처럼 개발용 방을 쓰면 실제 세미나 방과 섞이지 않습니다.
+`/admin`에서 `devtest` 그룹을 만든 뒤 `/devtest`를 쓰면 실제 세미나 그룹과 섞이지 않습니다.
 
 > DEV 바는 `import.meta.env.DEV`가 참인 Vite 개발 서버에서만 렌더링됩니다.
 > 프로덕션 빌드에서는 조건이 제거되므로 세미나 참가자에게 노출되지 않습니다.
 
 ## 문항 수정
 
-`assets/data.js` 의 `Q` 배열을 고친 뒤 **반드시** 검증하세요.
+`assets/data.ts` 의 `Q` 배열을 고친 뒤 **반드시** 검증하세요.
 
 ```bash
 npm run verify

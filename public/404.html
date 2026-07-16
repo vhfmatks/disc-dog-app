@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex">
+  <title>페이지로 이동 중…</title>
+</head>
+<body>
+<script>
+  // GitHub Pages는 동적 경로를 index.html로 rewrite하지 않는다. 프로젝트 루트로
+  // 한 번 이동한 뒤 원래 주소를 전달하면 React가 history URL을 즉시 복원한다.
+  (function () {
+    var original = location.pathname + location.search + location.hash;
+    var segments = location.pathname.split('/').filter(Boolean);
+    var base = location.hostname.endsWith('.github.io') && segments.length
+      ? '/' + segments[0] + '/'
+      : '/';
+    location.replace(base + '?__spa=' + encodeURIComponent(original));
+  }());
+</script>
+</body>
+</html>

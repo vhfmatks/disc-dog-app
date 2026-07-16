@@ -6,8 +6,67 @@
 // 주의 3: 문항 텍스트에 유형 힌트("주도형", "D형", 검사 이름)를 넣지 말 것.
 //         알고 나서 답하면 결과가 오염된다.
 
+export type TypeCode = 'D' | 'I' | 'S' | 'C';
+
+/** 1 = 매력(강점) 문항, -1 = 짖음(과할 때 나는 소리) 문항. */
+export type Polarity = 1 | -1;
+
+/** 두 유형의 관계. same = 같은 유형, good = 축 하나를 공유, bad = 대각선. */
+export type Relation = 'same' | 'good' | 'bad';
+
+export type Totals = Record<TypeCode, number>;
+
+export interface Question {
+  t: TypeCode;
+  p: Polarity;
+  x: string;
+}
+
+export interface TypeInfo {
+  code: TypeCode;
+  breed: string;
+  name: string;
+  hex: string;
+  tagline: string;
+  pace: string;
+  focus: string;
+  priorities: string[];
+  needs: string;
+  pressure: string;
+  charm: string[];
+  bark: string[];
+}
+
+export interface Guide {
+  formula: string[];
+  opener: string;
+  avoid: string;
+  /** [상황, 행동 지침] */
+  situations: Array<[string, string]>;
+}
+
+export interface Result {
+  charm: Totals;
+  bark: Totals;
+  totals: Totals;
+  /** 총점 내림차순. 동점이면 D→I→S→C. */
+  rank: TypeCode[];
+  primary: TypeCode;
+  /** 단일형이면 'D', 조합형이면 'DI' 처럼 두 글자. */
+  code: string;
+  x: number;
+  y: number;
+  gap: number;
+  charmScore: number;
+  barkScore: number;
+  charmAvg: number;
+  barkAvg: number;
+  intensity: number;
+  gapNote: string;
+}
+
 // t: 유형 / p: 1=매력, -1=짖음 / x: 문항. 배열 순서 = 화면 표시 순서.
-export const Q = [
+export const Q: Question[] = [
   // Page 1 — D3 I3 S2 C2 · 매력 7 / 짖음 3
   {t:'D',p: 1,x:'결정을 빠르게 내리는 편이다'},
   {t:'I',p:-1,x:'말이 많아 요점이 흐려진다는 소리를 듣는다'},
@@ -95,7 +154,7 @@ export const SCORE = Object.freeze({
   version: 2
 });
 
-export const SCALE = [
+export const SCALE: Array<{v: number; label: string}> = [
   {v:1, label:'전혀 아니다'},
   {v:2, label:'아니다'},
   {v:3, label:'보통이다'},
@@ -103,11 +162,11 @@ export const SCALE = [
   {v:5, label:'매우 그렇다'}
 ];
 
-export const ORDER = ['D', 'I', 'S', 'C'];
+export const ORDER: TypeCode[] = ['D', 'I', 'S', 'C'];
 
 // 견종은 전부 강아지로 통일한다. D에 사자·독수리 같은 포식자를 놓으면
 // "D = 우월한 유형"으로 소비된다. 같은 종 안의 품종 차이로 가면 서열이 안 생긴다.
-export const TYPES = {
+export const TYPES: Record<TypeCode, TypeInfo> = {
   D: {
     code: 'D', breed: '진돗개', name: '주도형', hex: '#F2544B',
     tagline: '빠르게 방향을 잡고 장애물을 밀어낸다. 자율성·도전·눈에 보이는 결과에서 에너지를 얻는다.',
@@ -155,7 +214,7 @@ export const TYPES = {
 };
 
 // 결과 화면의 "빠른 연결 / 번역 필요" 대표 1개씩.
-export const FIT = {
+export const FIT: Record<TypeCode, {good: TypeCode; bad: TypeCode}> = {
   D: {good: 'I', bad: 'S'},
   I: {good: 'S', bad: 'C'},
   S: {good: 'C', bad: 'D'},
@@ -171,7 +230,7 @@ export const FIT = {
 //         지켜본다
 //
 // 축을 공유하면 인접(빠른 연결), 마주보면 대각선(번역이 필요한 조합).
-const PAIR_WHY = {
+const PAIR_WHY: Record<string, string> = {
   DI: '둘 다 속도가 빠르다. D의 결과 집중과 I의 사람·가능성 집중이 서로 추진력을 보탠다.',
   IS: '둘 다 관계를 중요하게 본다. I가 불을 붙이고 S가 신뢰와 꾸준함으로 이어간다.',
   CS: '둘 다 생각한 뒤 꾸준히 움직인다. C의 기준과 S의 지원이 안정적인 실행을 만든다.',
@@ -180,24 +239,24 @@ const PAIR_WHY = {
   CI: '속도와 판단 언어가 다르다. I는 대화로 가능성을 키우고 C는 근거로 위험을 줄인다.'
 };
 
-const pairKey = (a, b) => [a, b].sort().join('');
+const pairKey = (a: TypeCode, b: TypeCode) => [a, b].sort().join('');
 
 /** 두 유형의 관계. 'same' | 'good'(인접·축 공유) | 'bad'(대각선) */
-export function rel(a, b) {
+export function rel(a: TypeCode, b: TypeCode): Relation {
   if (a === b) return 'same';
   const k = pairKey(a, b);
   return (k === 'DS' || k === 'CI') ? 'bad' : 'good';
 }
 
 /** 조합 설명 문구. 양방향 — why('D','I') === why('I','D') */
-export function why(a, b) {
+export function why(a: TypeCode, b: TypeCode): string {
   if (a === b) return `말은 빨리 통하지만 ${TYPES[a].bark[0]} 같은 맹점도 닮기 쉽다. 결정 전에 다른 관점을 한 번 빌려오자.`;
   return PAIR_WHY[pairKey(a, b)] || '';
 }
 
 // 내 유형 → 상대 유형별 행동 지침.
 // 톤: 명령형 반말, 실행 가능, 한 문단. 추상적인 조언("이해하려 노력하세요") 금지.
-export const HOW = {
+export const HOW: Record<TypeCode, Record<TypeCode, string>> = {
   D: {
     D: '속도와 결단은 잘 맞지만 주도권이 겹치기 쉽다. 시작 전에 결정권자와 이견을 가를 기준을 정해라. 상대의 반대는 도전이 아니라 결과를 더 좋게 만들 정보로 받아라.',
     I: '속도는 맞지만 중요하게 보는 것이 다르다. 결과만 지시하지 말고 누가 참여하고 무엇이 새로워지는지 열어둬라. 아이디어를 들은 뒤 담당자와 기한은 글로 확정해라.',
@@ -226,7 +285,7 @@ export const HOW = {
 
 // 상대 유형별 공통 대화 가이드. HOW는 내 유형과 상대 유형의 조합을,
 // GUIDE는 상대가 정보를 받아들이기 편한 순서와 상황별 행동을 설명한다.
-export const GUIDE = {
+export const GUIDE: Record<TypeCode, Guide> = {
   D: {
     formula: ['결론', '선택지', '기한'],
     opener: '“결론부터 말하면 A안입니다. 오늘 4시까지 결정이 필요합니다.”',
@@ -278,9 +337,9 @@ export const GUIDE = {
  * charm 10~50, bark 5~25, total 15~75.
  * 매력과 짖음의 문항 수가 다르므로 둘의 차이는 1~5점 문항 평균으로 비교한다.
  */
-export function score(answers) {
-  const charm = {D: 0, I: 0, S: 0, C: 0};
-  const bark = {D: 0, I: 0, S: 0, C: 0};
+export function score(answers: number[]): Result {
+  const charm: Totals = {D: 0, I: 0, S: 0, C: 0};
+  const bark: Totals = {D: 0, I: 0, S: 0, C: 0};
 
   Q.forEach((q, i) => {
     const v = answers[i];
@@ -288,7 +347,7 @@ export function score(answers) {
     (q.p === 1 ? charm : bark)[q.t] += v;
   });
 
-  const totals = {};
+  const totals = {} as Totals;
   for (const t of ORDER) totals[t] = charm[t] + bark[t];
 
   // 동점이면 D→I→S→C 순으로 안정 정렬.
@@ -301,8 +360,8 @@ export function score(answers) {
 
   // x: + 사람 먼저 / − 일 먼저,  y: + 먼저 나선다 / − 지켜본다.
   // 기존 40문항 좌표의 퍼짐을 유지하도록 점수 범위 증가분(40→60)에 맞춰 분모도 1.5배 한다.
-  const clamp = n => Math.max(-1, Math.min(1, n));
-  const round4 = n => Math.round(n * 1e4) / 1e4;
+  const clamp = (n: number) => Math.max(-1, Math.min(1, n));
+  const round4 = (n: number) => Math.round(n * 1e4) / 1e4;
   const x = round4(clamp(((totals.I + totals.S) - (totals.D + totals.C)) / 90));
   const y = round4(clamp(((totals.D + totals.I) - (totals.S + totals.C)) / 90));
 
@@ -322,23 +381,23 @@ export function score(answers) {
 }
 
 /** 매력 − 짖음 문항 평균(각 1~5점)의 갭 해석. */
-export function gapNote(gap) {
+export function gapNote(gap: number): string {
   if (gap >= 1.5) return '매력은 높게, 짖음은 낮게 보았습니다. 실제로 잘 다스리고 있거나 좋은 면을 중심으로 답했을 수 있어요. 옆 사람에게 물어보세요.';
   if (gap <= -1.2) return '짖음의 문항 평균이 매력보다 높습니다. 이 성향이 지금 좋은 쪽보다 힘든 쪽으로 나오고 있다는 신호예요. 자책보다 조절할 행동을 찾아보세요.';
   return '매력과 짖음이 균형적입니다. 자기 성향을 비교적 정확하게 보고 있습니다.';
 }
 
 /** 조합형이면 "○○ 기질이 섞여 있습니다" 문구. 단일형이면 빈 문자열. */
-export function blendNote(code) {
+export function blendNote(code: string): string {
   if (code.length < 2) return '';
-  const s = TYPES[code[1]];
+  const s = TYPES[code[1] as TypeCode];
   return `${s.breed}(${s.name}) 기질이 섞여 있습니다.`;
 }
 
 // ── 강아지 얼굴 SVG ────────────────────────────────────────────────
 // 외부 이미지 의존성 없이 인라인으로 그린다. viewBox 0 0 100 100 고정.
 
-const FACES = {
+const FACES: Record<TypeCode, string> = {
   // 진돗개 — 곧게 선 삼각 귀, 황토색
   D: `
     <path d="M25 42 L28 11 L47 31 Z" fill="#B87A2C"/>
@@ -409,13 +468,13 @@ const FACES = {
 };
 
 /** 유형별 강아지 얼굴 SVG 마크업. */
-export function dogFace(type, {size = 100, cls = ''} = {}) {
+export function dogFace(type: TypeCode, {size = 100, cls = ''}: {size?: number; cls?: string} = {}): string {
   return `<svg class="dog-face ${cls}" viewBox="0 0 100 100" width="${size}" height="${size}"
     role="img" aria-label="${TYPES[type].breed}" focusable="false">${FACES[type]}</svg>`;
 }
 
 /** 발바닥 아이콘 — 진행바와 관계도 노드에 공통으로 쓴다. */
-export function pawPath() {
+export function pawPath(): string {
   return 'M50 58c-9 0-16 6-16 13 0 6 5 10 16 10s16-4 16-10c0-7-7-13-16-13z' +
          'M29 47c-5 0-8 4-8 9s3 8 7 8 7-4 7-9-2-8-6-8z' +
          'M71 47c5 0 8 4 8 9s-3 8-7 8-7-4-7-9 2-8 6-8z' +
