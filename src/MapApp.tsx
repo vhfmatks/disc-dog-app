@@ -316,11 +316,7 @@ type MapSelection =
   | {mode: 'pair'; ids: [string, string]};
 
 function ParticipantDetail({row, rows}: {row: ResultRow | null; rows: ResultRow[]}) {
-  if (!row) {
-    return rows.length
-      ? <p className="small muted center">발바닥이나 아래 이름표를 누르면 그 사람 기준으로 관계선이 그려집니다.</p>
-      : null;
-  }
+  if (!row) return null;
 
   const type = TYPES[row.primary_type];
   const guide = GUIDE[row.primary_type];
@@ -565,11 +561,7 @@ export function MapApp({space, shareUrl}: {space: SpaceRow; shareUrl: string}) {
     });
   }, [rows]);
 
-  const clearSelection = () => {
-    clearAnalysisTimer();
-    setSelection({mode: 'idle'});
-  };
-
+  // 선택 해제 버튼은 없다. 고른 사람을 한 번 더 누르면 풀린다.
   const selectOne = (id: string) => {
     clearAnalysisTimer();
     setSelection(current => current.mode === 'single' && current.id === id
@@ -610,13 +602,14 @@ export function MapApp({space, shareUrl}: {space: SpaceRow; shareUrl: string}) {
     <main className="map-wrap">
       <div className="map-top">
         <p className="eyebrow">{space.name}</p>
-        <div className="counter"><span className="n">{rows.length}</span> 명</div>
-        <p className="small muted" style={{marginTop: 4, color: status.error ? 'var(--d)' : undefined}}>{status.message}</p>
-        <div className="map-actions">
-          <button type="button" className="btn ghost" onClick={clearSelection}>선택 해제</button>
-          <a className="btn ghost" href={spaceUrl(space.id)}>참가 링크 열기</a>
-          <CopyButton value={shareUrl} label="초대 링크 복사" />
+        <div className="map-count">
+          <div className="counter"><span className="n">{rows.length}</span> 명</div>
+          <div className="map-actions">
+            <a className="btn ghost sm" href={spaceUrl(space.id)}>참가 링크 열기</a>
+            <CopyButton value={shareUrl} label="초대 링크 복사" className="btn ghost sm" />
+          </div>
         </div>
+        <p className="small muted" style={{marginTop: 4, color: status.error ? 'var(--d)' : undefined}}>{status.message}</p>
       </div>
 
       <div className={`map-stage ${isAnalyzing ? 'analyzing' : ''}`}>
@@ -636,12 +629,6 @@ export function MapApp({space, shareUrl}: {space: SpaceRow; shareUrl: string}) {
           </div>
         </div>
 
-        <div className="map-zoom" role="group" aria-label="지도 확대">
-          <button type="button" onClick={zoomIn} disabled={!canZoomIn} aria-label="확대">＋</button>
-          <span aria-hidden="true">{Math.round(zoom * 100)}%</span>
-          <button type="button" onClick={zoomOut} disabled={!canZoomOut} aria-label="축소">－</button>
-        </div>
-
         {isAnalyzing && (
           <div className="map-analysis-overlay" aria-hidden="true">
             <div className="map-analysis-card">
@@ -654,6 +641,15 @@ export function MapApp({space, shareUrl}: {space: SpaceRow; shareUrl: string}) {
       </div>
 
       <div className="map-tools">
+        {/* 손가락으로는 두 손가락 핀치가, 트랙패드로는 핀치(ctrl+휠)가 같은 일을 한다.
+            이 버튼은 마우스와 키보드를 위해 남는다. */}
+        <div className="map-zoom" role="group" aria-label="지도 확대">
+          <span className="map-zoom-label">확대</span>
+          <button type="button" onClick={zoomOut} disabled={!canZoomOut} aria-label="축소">－</button>
+          <b>{Math.round(zoom * 100)}%</b>
+          <button type="button" onClick={zoomIn} disabled={!canZoomIn} aria-label="확대">＋</button>
+        </div>
+
         <div className="map-links" role="group" aria-label="관계선 수">
           <span className="map-links-label">관계선</span>
           <button
