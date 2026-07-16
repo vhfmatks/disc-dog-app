@@ -1,4 +1,9 @@
-[functions.admin-groups]
+[functions.spaces]
+# 스페이스 만들기/입장은 로그인 없는 공개 동작이다. 게이트는 이 함수가 직접
+# 비밀번호와 공유 토큰을 확인해서 건다.
+verify_jwt = false
+
+[functions.admin-spaces]
 # 신규 publishable key는 게이트웨이의 legacy JWT 검사 대상이 아니다.
 # 이 함수는 요청 본문의 ADMIN_PASSWORD를 자체 검증한다.
 verify_jwt = false

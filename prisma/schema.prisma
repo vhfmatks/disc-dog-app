@@ -1,0 +1,65 @@
+// 테이블 구조의 source of truth.
+//
+// ⚠ Prisma가 아는 건 여기까지 — 테이블·컬럼·인덱스·FK뿐입니다. 이 앱의 방어선인
+//   RLS 정책, 컬럼 단위 GRANT, security definer 함수, 트리거, CHECK 제약, Realtime
+//   publication, pg_cron 작업은 Prisma 문법으로 표현할 수 없어 마이그레이션 SQL에
+//   손으로 들어 있습니다 (prisma/migrations/*/migration.sql).
+//
+//   Prisma는 자기가 모르는 것들을 건드리지 않으므로 마이그레이션을 거듭해도 정책은
+//   살아남습니다. 다만 새 마이그레이션을 만들 때 정책까지 같이 손봐야 한다면 그건
+//   사람이 SQL로 적어야 합니다. `npm run db:migrate:new` 참고.
+//
+// 런타임 쿼리는 Prisma Client가 아니라 supabase-js가 합니다 (브라우저 + Realtime + RLS).
+// 그래서 generator 블록이 없고 @prisma/client 의존성도 없습니다.
+
+// 접속 URL은 Prisma 7부터 여기 쓸 수 없다. prisma.config.ts를 본다.
+datasource db {
+  provider = "postgresql"
+}
+
+/// 한 번의 세미나·모임 단위. 입장 코드가 곧 기본키다.
+model spaces {
+  id            String    @id @db.Text
+  name          String    @unique(map: "spaces_name_key") @db.Text
+  /// PBKDF2 해시. null이면 코드만 알면 들어오는 열린 스페이스.
+  password_hash String?   @db.Text
+  /// 초대 링크(#k=)에 실리는 출입증. anon은 이 컬럼을 읽을 수 없다 (컬럼 GRANT).
+  share_token   String    @default(dbgenerated("replace((gen_random_uuid())::text, '-'::text, ''::text)")) @db.Text
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime  @default(now()) @db.Timestamptz(6)
+  results       results[]
+}
+
+/// 참가자 한 명의 채점 결과. 24시간 뒤 pg_cron이 지운다.
+model results {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// spaces.id. 이름이 room인 건 스페이스 도입 전부터 쓰던 컬럼이라서다.
+  room         String   @db.Text
+  nickname     String   @db.Text
+  code         String   @db.Text
+  primary_type String   @db.Char(1)
+  totals       Json     @db.JsonB
+  charm        Int      @db.SmallInt
+  bark         Int      @db.SmallInt
+  x            Float    @db.Real
+  y            Float    @db.Real
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  expires_at   DateTime @default(dbgenerated("(now() + '24:00:00'::interval)")) @db.Timestamptz(6)
+  space        spaces   @relation(fields: [room], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "results_room_space_fkey")
+
+  @@index([room, created_at], map: "results_room_created_idx")
+  @@index([expires_at], map: "results_expires_idx")
+  @@unique([room, nickname], map: "results_room_nickname_key")
+}
+
+/// 비밀번호 대입·스페이스 대량 생성 제한용 카운터. service role만 접근한다.
+model space_attempts {
+  /// 스페이스 id, 또는 생성 제한용 '#create'
+  scope      String   @db.Text
+  /// 요청 IP의 해시. 원본 IP는 저장하지 않는다.
+  client_key String   @db.Text
+  tries      Int      @default(1) @db.SmallInt
+  window_end DateTime @db.Timestamptz(6)
+
+  @@id([scope, client_key])
+}

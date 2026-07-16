@@ -6,22 +6,33 @@
   "description": "강아지 유형 세미나 도구 — Vite + React + TypeScript + Supabase",
   "scripts": {
     "config": "node scripts/gen-config.mjs",
+    "test": "node --experimental-strip-types --test scripts/*.test.mjs",
     "verify": "node scripts/verify-questions.mjs",
     "typecheck": "tsc --noEmit",
     "dev": "npm run config && npm run verify && vite",
     "build": "npm run config && npm run verify && npm run typecheck && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:new": "prisma migrate dev --create-only",
+    "db:baseline": "prisma db execute --file prisma/migrations/0_init/migration.sql && prisma migrate resolve --applied 0_init",
+    "db:status": "prisma migrate status"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.52.0",
+    "qrcode": "^1.5.4",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.6.0",
+    "dotenv": "^17.4.2",
+    "jsqr": "^1.4.0",
+    "pngjs": "^7.0.0",
+    "prisma": "^7.8.0",
     "typescript": "^7.0.2",
     "vite": "^7.0.0"
   }

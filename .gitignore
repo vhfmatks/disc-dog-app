@@ -4,3 +4,6 @@ src/config.ts
 node_modules/
 dist/
 .DS_Store
+
+# supabase link가 남기는 로컬 상태. 사람마다 다르고 공유할 값이 아니다.
+supabase/.temp/
