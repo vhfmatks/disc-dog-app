@@ -1,10 +1,11 @@
-import {useEffect, useMemo, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
+import {TYPES} from '../assets/data.ts';
 import {CopyButton} from './components/CopyButton.tsx';
 import {SpaceNameStatus, ValidationStatus} from './components/FieldStatus.tsx';
 import {useSpaceNameCheck} from './hooks/useSpaceNameCheck.ts';
-import {SPACE_NAME_MAX, adminSpaceRequest} from './lib/db.ts';
-import type {AdminSpaceRow} from './lib/db.ts';
-import {isSpaceId, normalizeSpaceId, spaceMapUrl, spaceShareUrl, spaceUrl} from './lib/router.ts';
+import {SPACE_NAME_MAX, adminSpaceRequest, adminSpaceResults} from './lib/db.ts';
+import type {AdminResultsResponse, AdminSpaceRow, ResultRow} from './lib/db.ts';
+import {isSpaceId, normalizeSpaceId, spaceMapShareUrl, spaceShareUrl} from './lib/router.ts';
 import {validateSpacePassword} from './lib/space-rules.ts';
 
 const SESSION_KEY = 'dogtype:admin-password';
@@ -160,19 +161,110 @@ function SpaceForm({onCreate, busy}: SpaceFormProps) {
   );
 }
 
+type DataState =
+  | {status: 'closed'}
+  | {status: 'loading'}
+  | {status: 'ready'; rows: ResultRow[]}
+  | {status: 'error'; message: string};
+
+/** 이 스페이스에 제출된 결과 전부. 지도(/map)를 열지 않고 숫자 그대로 보고 싶을 때 쓴다. */
+function ParticipantData({spaceId, onLoad}: {spaceId: string; onLoad: () => Promise<AdminResultsResponse>}) {
+  const [state, setState] = useState<DataState>({status: 'closed'});
+  // 늦게 온 응답이 이미 접은 패널을 혼자 다시 펴지 않도록 세대를 센다.
+  const generation = useRef(0);
+
+  const load = async () => {
+    const mine = ++generation.current;
+    setState({status: 'loading'});
+    const response = await onLoad();
+    if (generation.current !== mine) return;
+    setState(response.ok
+      ? {status: 'ready', rows: response.rows}
+      : {status: 'error', message: `[${response.code}] ${response.error}`}
+    );
+  };
+
+  const close = () => {
+    generation.current += 1;
+    setState({status: 'closed'});
+  };
+
+  // 스페이스를 지웠다 다시 만들면 같은 코드로 다른 데이터가 온다. 접어서 초기화한다.
+  useEffect(close, [spaceId]);
+
+  const open = state.status !== 'closed';
+
+  return (
+    <section className="admin-data">
+      <button
+        type="button"
+        className="admin-data-toggle"
+        aria-expanded={open}
+        onClick={() => (open ? close() : void load())}
+      >
+        <span className={`chips-caret ${open ? 'open' : ''}`} aria-hidden="true">▾</span>
+        참가자 데이터
+      </button>
+
+      {state.status === 'loading' && <p className="small muted">불러오는 중…</p>}
+      {state.status === 'error' && <p className="form-error" role="alert">{state.message}</p>}
+      {state.status === 'ready' && state.rows.length === 0 && (
+        <p className="small muted">아직 아무도 제출하지 않았습니다.</p>
+      )}
+      {state.status === 'ready' && state.rows.length > 0 && (
+        <>
+          <div className="admin-data-scroll">
+            <table className="admin-data-table">
+              <thead>
+                <tr>
+                  <th scope="col">닉네임</th>
+                  <th scope="col">유형</th>
+                  <th scope="col">코드</th>
+                  <th scope="col">매력</th>
+                  <th scope="col">짖음</th>
+                  <th scope="col">제출 시각</th>
+                </tr>
+              </thead>
+              <tbody>
+                {state.rows.map(row => (
+                  <tr key={row.id}>
+                    <td>{row.nickname}</td>
+                    <td>
+                      <span className="admin-data-dot" style={{background: TYPES[row.primary_type].hex}} aria-hidden="true" />
+                      {TYPES[row.primary_type].name}
+                    </td>
+                    <td><code>{row.code}</code></td>
+                    <td className="num">{row.charm}</td>
+                    <td className="num">{row.bark}</td>
+                    <td className="small muted">{new Date(row.created_at).toLocaleString('ko-KR')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <button type="button" className="btn ghost admin-data-refresh" onClick={() => void load()}>
+            새로고침
+          </button>
+        </>
+      )}
+    </section>
+  );
+}
+
 interface SpaceItemProps {
   space: AdminSpaceRow;
   busy: boolean;
   onUpdate: (id: string, name: string) => Promise<boolean>;
   onDelete: (space: AdminSpaceRow) => void;
+  onLoadResults: (id: string) => Promise<AdminResultsResponse>;
 }
 
-function SpaceItem({space, busy, onUpdate, onDelete}: SpaceItemProps) {
+function SpaceItem({space, busy, onUpdate, onDelete, onLoadResults}: SpaceItemProps) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(space.name);
-  const participantHref = useMemo(() => spaceUrl(space.id), [space.id]);
-  const mapHref = useMemo(() => spaceMapUrl(space.id), [space.id]);
+  // 관리자는 스페이스 비밀번호를 모른다. 출입증을 실은 링크로 열어야 게이트를 지난다.
   const shareHref = useMemo(() => spaceShareUrl(space.id, space.share_token), [space.id, space.share_token]);
+  const mapHref = useMemo(() => spaceMapShareUrl(space.id, space.share_token), [space.id, space.share_token]);
 
   useEffect(() => setName(space.name), [space.name]);
 
@@ -184,6 +276,10 @@ function SpaceItem({space, busy, onUpdate, onDelete}: SpaceItemProps) {
           {space.has_password
             ? <span className="tag locked">비밀번호 잠김</span>
             : <span className="tag open">공개</span>}
+          {/* 함수를 아직 새로 배포하지 않았다면 이 값이 아예 없다. null(못 셈)과 똑같이 감춘다. */}
+          {typeof space.result_count === 'number' && (
+            <span className="tag count">참가자 {space.result_count}명</span>
+          )}
           {editing ? (
             <form className="admin-edit" onSubmit={async event => {
               event.preventDefault();
@@ -216,10 +312,11 @@ function SpaceItem({space, busy, onUpdate, onDelete}: SpaceItemProps) {
         )}
       </div>
       <div className="admin-links">
-        <a href={participantHref} target="_blank" rel="noreferrer">참가자 화면 ↗</a>
+        <a href={shareHref} target="_blank" rel="noreferrer">참가자 화면 ↗</a>
         <a href={mapHref} target="_blank" rel="noreferrer">진행자 화면 ↗</a>
         <CopyButton value={shareHref} label="초대 링크 복사" className="" />
       </div>
+      <ParticipantData spaceId={space.id} onLoad={() => onLoadResults(space.id)} />
     </article>
   );
 }
@@ -275,7 +372,10 @@ export function AdminApp() {
         <div>
           <p className="eyebrow">ADMIN</p>
           <h1>스페이스 관리</h1>
-          <p className="muted">스페이스마다 참가 링크와 결과 화면이 완전히 분리됩니다.</p>
+          <p className="muted">
+            모든 스페이스를 스페이스 비밀번호 없이 열어볼 수 있습니다 —
+            화면 링크에 출입증이 실려 있습니다.
+          </p>
         </div>
         <button className="btn ghost" type="button" onClick={() => {
           sessionStorage.removeItem(SESSION_KEY);
@@ -303,6 +403,7 @@ export function AdminApp() {
               const confirmed = window.confirm(`“${target.name}” 스페이스와 이 스페이스의 모든 결과를 삭제할까요?`);
               if (confirmed) await request('delete', {id: target.id});
             }}
+            onLoadResults={id => adminSpaceResults(password, id)}
             key={space.id}
           />
         ))}

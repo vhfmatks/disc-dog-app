@@ -12,7 +12,7 @@
 | 참가자 | `/<code>` — 폰 (초대 링크로 진입) |
 | 진행자 | `/<code>/map` — 데스크톱 + 프로젝터 |
 | 프로필 | `/profile` — 이 브라우저에 남은 내 응답 (이어하기·삭제) |
-| 관리자 | `/admin` — 전체 스페이스 목록·삭제 (운영용) |
+| 관리자 | `/admin` — 전체 스페이스 목록·참가자 데이터 조회·삭제 (운영용) |
 | 백엔드 | Supabase (Postgres + RLS + Edge Functions + Realtime) |
 | 호스팅 | GitHub Pages |
 | 프런트엔드 | Vite + React + TypeScript |
@@ -60,6 +60,10 @@
   사라지므로 이 정도를 의도된 수준으로 봅니다.
 - 제대로 막으려면 결과 조회에도 토큰이 필요한데, 그러면 Realtime(`postgres_changes`)이 같이
   죽습니다. 실시간 지도가 이 도구의 핵심이라 택하지 않았습니다.
+- **`ADMIN_PASSWORD`는 모든 스페이스의 마스터 키입니다.** 이 값을 아는 사람은 `/admin`에서
+  스페이스 비밀번호를 하나도 모른 채 모든 스페이스·관계도·참가자 데이터를 봅니다. 원래부터
+  그랬습니다 — 목록이 스페이스마다 초대 링크의 출입증(`share_token`)을 내려주기 때문입니다.
+  스페이스 비밀번호는 참가자끼리 방을 나누는 칸막이지, 운영자에 대한 방벽이 아닙니다.
 - **민감한 정보를 넣는 용도가 아닙니다.** 워크숍 도구입니다.
 
 ---
@@ -173,7 +177,7 @@ npm run db:baseline
 - RLS: **SELECT**(만료 전만) / **INSERT**(24시간 초과 금지) 만 허용. UPDATE·DELETE는 정책 없음 = 전면 거부
 - `public.space_attempts` + `note_space_attempt()` — 비밀번호 대입·생성 남용 제한 (service role 전용)
 - `spaces` Edge Function: 이름 중복 확인 + 스페이스 생성 + 입장(비밀번호/토큰 검증)
-- `admin-spaces` Edge Function: 관리자 비밀번호 검증 + 목록·이름 수정·삭제
+- `admin-spaces` Edge Function: 관리자 비밀번호 검증 + 목록·이름 수정·삭제·참가자 데이터 조회
 - 방당 200명 상한 트리거
 - Realtime publication
 - 매시 17분 만료된 결과·시도 기록 삭제 (`pg_cron`)
@@ -300,7 +304,7 @@ tsconfig.json              TypeScript 설정 (strict)
 /hazel-corgi-427          참가자 설문 — 비밀번호를 물어봄
 /hazel-corgi-427#k=<토큰> 초대 링크 — 바로 입장
 /hazel-corgi-427/map      해당 스페이스 닉네임·결과 관계도
-/admin                    전체 목록·이름 수정·삭제 (운영용)
+/admin                    전체 목록·이름 수정·삭제·참가자 데이터 조회 (운영용)
 ```
 
 입장 코드는 `[a-z0-9-]{3,24}` 형식이며 `admin`, `map`, `new`, `profile`은 예약어입니다. `/new`로 만들면

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {isSpaceId, parseRoute, spaceShareUrl} from '../src/lib/router.ts';
+import {isSpaceId, parseRoute, spaceMapShareUrl, spaceShareUrl} from '../src/lib/router.ts';
 import {readShareTokenFromUrl, stripShareTokenFromUrl} from '../src/lib/access.ts';
 import {
   NAME_MAX as SERVER_NAME_MAX, PASSWORD_MAX as SERVER_PASSWORD_MAX,
@@ -53,11 +53,33 @@ test('공유 링크의 #k= 토큰은 라우팅을 바꾸지 않는다', () => {
 test('초대 링크를 만들고 다시 읽으면 같은 스페이스와 토큰이 나온다', () => {
   stubWindow('https://x.io/app/new');
   const url = spaceShareUrl('hazel-corgi-427', '0123456789abcdef');
-  assert.equal(url, 'https://x.io/app/hazel-corgi-427#k=0123456789abcdef');
+  // GitHub Pages의 루트(index.html, HTTP 200)를 바로 열어야
+  // 카카오톡·Slack 크롤러가 OG 메타데이터를 안정적으로 읽는다.
+  assert.equal(url, 'https://x.io/app/?r=hazel-corgi-427#k=0123456789abcdef');
 
   stubWindow(url);
   assert.deepEqual(parseRoute(window.location), {kind: 'participant', spaceId: 'hazel-corgi-427'});
   assert.equal(readShareTokenFromUrl(), '0123456789abcdef');
+});
+
+test('관리자의 진행자 화면 링크는 지도로 가면서 출입증을 함께 싣는다', () => {
+  stubWindow('https://x.io/app/admin');
+  const url = spaceMapShareUrl('hazel-corgi-427', '0123456789abcdef');
+  assert.equal(url, 'https://x.io/app/hazel-corgi-427/map#k=0123456789abcdef');
+
+  // 이 링크 하나로 게이트를 지나야 한다 — 관리자는 스페이스 비밀번호를 모른다.
+  stubWindow(url);
+  assert.deepEqual(parseRoute(window.location), {kind: 'map', spaceId: 'hazel-corgi-427'});
+  assert.equal(readShareTokenFromUrl(), '0123456789abcdef');
+});
+
+test('미리보기 용도의 스페이스 코드는 토큰을 지운 뒤에도 남는다', () => {
+  stubWindow('https://x.io/app/?r=hazel-corgi-427#k=0123456789abcdef');
+
+  stripShareTokenFromUrl();
+
+  assert.equal(window.location.href, 'https://x.io/app/?r=hazel-corgi-427');
+  assert.deepEqual(parseRoute(window.location), {kind: 'participant', spaceId: 'hazel-corgi-427'});
 });
 
 test('토큰을 챙긴 뒤에는 주소창에서 지운다', () => {

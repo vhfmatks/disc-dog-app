@@ -19,6 +19,8 @@ export interface SpaceRow {
 export interface AdminSpaceRow extends SpaceRow {
   share_token: string;
   has_password: boolean;
+  /** 살아 있는 참가자 수. 서버가 세지 못했으면 null — 0명과 구분한다. */
+  result_count: number | null;
 }
 
 /** results 테이블에서 읽어오는 행. expires_at은 조회하지 않는다 (schema.sql). */
@@ -69,6 +71,10 @@ export type NicknameCheckResponse =
 export type AdminSpaceResponse =
   | {ok: true; spaces: AdminSpaceRow[]}
   | {ok: false; spaces: AdminSpaceRow[]; code: string; error: string};
+
+export type AdminResultsResponse =
+  | {ok: true; rows: ResultRow[]}
+  | {ok: false; code: string; error: string};
 
 const client = createClient(CONFIG.url, CONFIG.anonKey, {
   auth: {persistSession: false},
@@ -203,6 +209,22 @@ export async function adminSpaceRequest(
     };
   }
   return {ok: true, spaces: (body.spaces as AdminSpaceRow[]) || []};
+}
+
+/**
+ * 한 스페이스의 참가자 데이터. 스페이스 비밀번호는 묻지 않는다 — 관리자 비밀번호가
+ * 이미 모든 스페이스의 마스터 키다 (admin-spaces 함수 머리말).
+ */
+export async function adminSpaceResults(password: string, id: string): Promise<AdminResultsResponse> {
+  const {status, body} = await callFunction('admin-spaces', {action: 'results', password, id});
+  if (status !== 200) {
+    return {
+      ok: false,
+      code: String(body.code || (status ? `HTTP_${status}` : 'NETWORK_UNREACHABLE')),
+      error: String(body.error || `참가자 데이터를 불러오지 못했습니다${statusSuffix(status)}`)
+    };
+  }
+  return {ok: true, rows: (body.results as ResultRow[]) || []};
 }
 
 export async function saveResult(row: NewResultRow): Promise<SaveResponse> {

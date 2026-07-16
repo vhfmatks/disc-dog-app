@@ -87,9 +87,28 @@ export function spaceMapUrl(spaceId: string, route?: Route): string {
   return new URL(`${encodeURIComponent(spaceId)}/map`, appBaseUrl(route)).href;
 }
 
+/**
+ * 진행자 화면을 비밀번호 없이 여는 링크. 관리자 화면이 스페이스마다 만든다.
+ *
+ * 초대 링크(spaceShareUrl)와 달리 clean URL을 그대로 쓴다 — 이 주소는 채팅방에
+ * 뿌리는 게 아니라 관리자가 자기 브라우저에서 바로 열기 때문에 OG 크롤러를
+ * 신경 쓸 이유가 없다. 404.html이 #k=까지 함께 복원해준다.
+ */
+export function spaceMapShareUrl(spaceId: string, token: string, route?: Route): string {
+  const url = new URL(`${encodeURIComponent(spaceId)}/map`, appBaseUrl(route));
+  url.hash = `k=${encodeURIComponent(token)}`;
+  return url.href;
+}
+
 /** 이 링크를 가진 사람은 비밀번호 없이 들어온다. 토큰은 프래그먼트에만 싣는다. */
 export function spaceShareUrl(spaceId: string, token: string, route?: Route): string {
-  return `${spaceUrl(spaceId, route)}#k=${encodeURIComponent(token)}`;
+  // GitHub Pages는 /<spaceId>를 HTTP 404로 응답한 뒤 JS로 복원한다.
+  // 공유 크롤러는 그 JS를 실행하지 않을 수 있으므로, OG 메타가 있는 루트를
+  // 바로 열고 이미 지원하는 ?r= 파라미터로 스페이스를 전달한다.
+  const url = appBaseUrl(route);
+  url.searchParams.set('r', spaceId);
+  url.hash = `k=${encodeURIComponent(token)}`;
+  return url.href;
 }
 
 export function homeUrl(route?: Route): string {
