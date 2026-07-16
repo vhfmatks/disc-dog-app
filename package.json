@@ -1,0 +1,23 @@
+{
+  "name": "dogtype",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "강아지 유형 세미나 도구 — Vite + React + Supabase",
+  "scripts": {
+    "config": "node scripts/gen-config.mjs",
+    "verify": "node scripts/verify-questions.mjs",
+    "dev": "npm run config && npm run verify && vite",
+    "build": "npm run config && npm run verify && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.52.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.6.0",
+    "vite": "^7.0.0"
+  }
+}
