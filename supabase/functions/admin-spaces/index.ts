@@ -15,6 +15,16 @@ import {
   classifySpaceUniqueViolation, corsHeaders, hashPassword, json, sameSecret, validSpaceId
 } from '../_shared/spaces.ts';
 
+/**
+ * 서버에 박아둔 관리자 비밀번호의 최소 길이. 사용자 입력이 아니라 배포 설정을 본다.
+ *
+ * ⚠ 이 함수에는 시도 제한이 없다 (spaces 함수의 ENTER_LIMIT 같은 게 없다). 공개
+ *   엔드포인트에 무제한으로 넣어볼 수 있다는 뜻이고, 이 비밀번호 하나가 모든
+ *   스페이스의 마스터 키다. 짧게 잡을수록 사전 공격에 그대로 노출된다 —
+ *   여기를 낮췄다면 사람이 외우는 낱말 대신 무작위 문자열을 쓰는 게 좋다.
+ */
+const ADMIN_PASSWORD_MIN = 8;
+
 interface Input {
   action?: string;
   password?: string;
@@ -47,7 +57,9 @@ Deno.serve(async request => {
 
   const expectedPassword = Deno.env.get('ADMIN_PASSWORD') || '';
   if (!expectedPassword) return json({error: '서버에 ADMIN_PASSWORD가 설정되지 않았습니다.'}, 500);
-  if (expectedPassword.length < 12) return json({error: 'ADMIN_PASSWORD는 12자 이상으로 설정해주세요.'}, 500);
+  if (expectedPassword.length < ADMIN_PASSWORD_MIN) {
+    return json({error: `ADMIN_PASSWORD는 ${ADMIN_PASSWORD_MIN}자 이상으로 설정해주세요.`}, 500);
+  }
 
   let input: Input;
   try {

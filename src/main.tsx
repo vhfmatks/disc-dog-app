@@ -13,7 +13,7 @@ import {SPACE_NAME_MAX, SPACE_PASSWORD_MIN, createSpace, enterSpace} from './lib
 import type {SpaceRow} from './lib/db.ts';
 import {validatePasswordConfirmation, validateSpacePassword} from './lib/space-rules.ts';
 import {
-  adminUrl, createUrl, homeUrl, isSpaceId, normalizeSpaceId, spaceShareUrl, spaceUrl, useRoute
+  createUrl, homeUrl, isSpaceId, normalizeSpaceId, spaceShareUrl, spaceUrl, useRoute
 } from './lib/router.ts';
 import type {Route} from './lib/router.ts';
 import '../assets/style.css';
@@ -58,8 +58,6 @@ function HomeApp() {
 
         <div className="or-rule"><span>또는</span></div>
         <a className="btn ghost block" href={createUrl()}>+ 새 스페이스 만들기</a>
-
-        <a className="admin-entry" href={adminUrl()}>관리자 페이지</a>
       </section>
     </main>
   );

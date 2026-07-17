@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from 'react';
-import {adminUrl, createUrl, homeUrl, profileUrl, spaceMapUrl, spaceUrl} from '../lib/router.ts';
+import {createUrl, homeUrl, profileUrl, spaceMapUrl, spaceUrl} from '../lib/router.ts';
 
 interface MenuItem {
   href: string;
@@ -45,8 +45,7 @@ export function AppHeader({spaceId = ''}: {spaceId?: string}) {
   const items: MenuItem[] = [
     {href: homeUrl(), label: '홈'},
     {href: createUrl(), label: '새 스페이스 만들기'},
-    {href: profileUrl(), label: '프로필', note: '내 응답 · 이어하기'},
-    {href: adminUrl(), label: '관리자', note: '운영용'}
+    {href: profileUrl(), label: '프로필', note: '내 응답 · 이어하기'}
   ];
 
   return (
