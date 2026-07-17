@@ -3,7 +3,7 @@
   "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "강아지 유형 세미나 도구 — Vite + React + TypeScript + Supabase",
+  "description": "개성 — 강아지 유형 세미나 도구 · Vite + React + TypeScript + Supabase",
   "scripts": {
     "config": "node scripts/gen-config.mjs",
     "test": "node --experimental-strip-types --test scripts/*.test.mjs",
@@ -18,7 +18,6 @@
     "db:status": "prisma migrate status"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.52.0",
     "qrcode": "^1.5.4",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"

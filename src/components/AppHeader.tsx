@@ -1,5 +1,8 @@
 import {useEffect, useRef, useState} from 'react';
-import {createUrl, homeUrl, profileUrl, spaceMapUrl, spaceUrl} from '../lib/router.ts';
+import {
+  createUrl, homeUrl, isSpaceId, normalizeSpaceId, profileUrl, spaceMapUrl,
+  spacePasswordUrl, spaceUrl
+} from '../lib/router.ts';
 
 interface MenuItem {
   href: string;
@@ -14,7 +17,9 @@ interface MenuItem {
  */
 export function AppHeader({spaceId = ''}: {spaceId?: string}) {
   const [open, setOpen] = useState(false);
+  const [entryCode, setEntryCode] = useState('');
   const headerRef = useRef<HTMLElement>(null);
+  const validEntryCode = isSpaceId(entryCode);
 
   useEffect(() => {
     if (!open) return;
@@ -52,7 +57,7 @@ export function AppHeader({spaceId = ''}: {spaceId?: string}) {
     <header className="app-header" ref={headerRef}>
       <div className="app-header-inner">
         <a className="app-header-title" href={homeUrl()}>
-          <span aria-hidden="true">🐶</span> 강아지 유형
+          <span aria-hidden="true">🐶</span> 개성
         </a>
 
         <button
@@ -76,6 +81,27 @@ export function AppHeader({spaceId = ''}: {spaceId?: string}) {
               <hr className="app-menu-rule" />
             </>
           )}
+          <form className="app-menu-entry" onSubmit={event => {
+            event.preventDefault();
+            if (validEntryCode) window.location.assign(spacePasswordUrl(entryCode));
+          }}>
+            <label htmlFor="menu-space-code">입장 코드</label>
+            <div>
+              <input
+                id="menu-space-code"
+                className="input"
+                placeholder="예: hazel-corgi-427"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+                enterKeyHint="go"
+                value={entryCode}
+                onChange={event => setEntryCode(normalizeSpaceId(event.target.value))}
+              />
+              <button type="submit" disabled={!validEntryCode}>입장</button>
+            </div>
+          </form>
+          <hr className="app-menu-rule" />
           {items.map(item => <MenuLink item={item} key={item.href} />)}
         </nav>
       </div>

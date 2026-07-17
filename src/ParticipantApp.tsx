@@ -8,15 +8,21 @@ import type {Result as ScoreResult} from '../assets/data.ts';
 import {CopyButton} from './components/CopyButton.tsx';
 import {DogFace} from './components/DogFace.tsx';
 import {PersonalResult} from './components/PersonalResult.tsx';
+import {SpaceIcon} from './components/SpaceIcon.tsx';
 import {DevBar} from './dev/DevBar.tsx';
 import {
   DONE_MAX, clearDraft, doneSetToEvict, formatWhen, loadStore, saveDoneSet, saveDraft
 } from './lib/answer-store.ts';
 import type {DoneSet, Draft} from './lib/answer-store.ts';
 import {checkNickname, saveResult} from './lib/db.ts';
-import type {SpaceRow} from './lib/db.ts';
+import type {SpaceRow, SpaceSummary} from './lib/db.ts';
 import {NICKNAME_MAX, validateNickname} from './lib/nickname-rules.ts';
 import {profileUrl, spaceMapUrl, spaceUrl} from './lib/router.ts';
+import {DEFAULT_SPACE_ICON_ID, isSpaceIconId} from './lib/space-icons.ts';
+import type {SpaceIconId} from './lib/space-icons.ts';
+
+const safeIconId = (value: string): SpaceIconId =>
+  isSpaceIconId(value) ? value : DEFAULT_SPACE_ICON_ID;
 
 const EMPTY_ANSWERS = (): number[] => new Array(Q.length).fill(0);
 
@@ -76,8 +82,11 @@ function ProfileCapacityWarning({evictedSet}: {evictedSet: DoneSet}) {
 
 interface IntroProps {
   space: SpaceRow;
+  token: string;
   shareUrl: string;
   nickname: string;
+  /** 이 스페이스의 결과를 함께보기로 읽을 수 있는 스페이스들. 없으면 빈 배열. */
+  sharedWith: SpaceSummary[];
   /** 다른 스페이스에서 풀다 만 한 벌. */
   elsewhere: Draft | null;
   /** 저장된 세트가 없어 시작하기가 곧장 설문으로 간다 = 여기서 draft가 밀려난다. */
@@ -86,18 +95,21 @@ interface IntroProps {
   onStart: () => void;
 }
 
-function Intro({space, shareUrl, nickname, elsewhere, startsQuiz, onNicknameChange, onStart}: IntroProps) {
+function Intro({
+  space, token, shareUrl, nickname, sharedWith, elsewhere, startsQuiz, onNicknameChange, onStart
+}: IntroProps) {
   const ready = nickname.trim().length > 0;
   const [confirmStart, setConfirmStart] = useState(false);
   const [nicknameCheck, setNicknameCheck] = useState<NicknameCheckState>({status: 'idle'});
   const elsewhereDone = elsewhere?.answers.filter(Boolean).length ?? 0;
   const guard = Boolean(elsewhere) && startsQuiz;
   const checking = nicknameCheck.status === 'checking';
+  const duplicate = nicknameCheck.status === 'duplicate';
 
   const start = async () => {
     if (!ready || checking) return;
     setNicknameCheck({status: 'checking'});
-    const response = await checkNickname(space.id, nickname);
+    const response = await checkNickname(space.id, token, nickname);
     if (!response.ok) {
       setNicknameCheck({status: 'error', code: response.code, message: response.error});
       return;
@@ -147,11 +159,35 @@ function Intro({space, shareUrl, nickname, elsewhere, startsQuiz, onNicknameChan
       <div className="hero-dogs" aria-hidden="true">
         {ORDER.map(type => <DogFace type={type} size={62} key={type} />)}
       </div>
-      <h1 style={{fontSize: 28, margin: '6px 0 8px'}}>나는 어떤 강아지일까</h1>
+      <h1 style={{fontSize: 24, margin: '6px 0 8px'}}>나는 어떤 강아지일까</h1>
       <p className="muted" style={{fontSize: 15}}>
-        60개 문항에 답하면 네 마리 중 나와 닮은 강아지를 찾아드립니다.
+        60개 문항에 답하면 네 마리 중 나와 닮은 강아지를 찾아드립니다.<br />
         정답은 없습니다. <b>오래 고민하지 말고 평소의 나</b>로 답하세요.
       </p>
+
+      {/* 사람은 자기 이름이 어느 화면에 뜨는지 모른 채로 제출하면 안 된다.
+          설문을 시작하기 전에, 닉네임 칸보다 먼저 말해준다. */}
+      {sharedWith.length > 0 && (
+        <div className="callout shared-notice" style={{marginTop: 18}}>
+          <b>이 스페이스의 결과는 다른 스페이스에도 표시됩니다</b>
+          <p className="small" style={{marginTop: 4}}>
+            지금부터 제출되는 닉네임과 강아지 유형이 아래 스페이스 구성원의 함께보기 지도에
+            보일 수 있습니다.
+          </p>
+          <ul className="shared-notice-list">
+            {sharedWith.map(viewer => (
+              <li key={viewer.id}>
+                <SpaceIcon iconId={safeIconId(viewer.icon_id)} size={22} decorative />
+                {viewer.name}
+              </li>
+            ))}
+          </ul>
+          <p className="small muted" style={{marginTop: 8}}>
+            넘어가는 건 지도에 뜨는 것과 같습니다 — 닉네임과 강아지 유형, 점수뿐입니다.
+            60문항에 어떻게 답했는지는 넘어가지 않습니다.
+          </p>
+        </div>
+      )}
 
       {elsewhere && (
         <div className="callout" style={{marginTop: 18}}>
@@ -195,9 +231,20 @@ function Intro({space, shareUrl, nickname, elsewhere, startsQuiz, onNicknameChan
           />
           {nicknameStatus}
         </div>
-        <button type="button" className="btn block" disabled={!ready || checking} onClick={() => void start()}>
-          {checking ? '확인 중…' : '시작하기'}
+        <button
+          type="button"
+          className="btn block"
+          disabled={!ready || checking || duplicate}
+          onClick={() => void start()}
+        >
+          {checking ? '확인 중…' : duplicate ? '이미 사용 중인 닉네임' : '시작하기'}
         </button>
+
+        {duplicate && (
+          <a className="btn ghost block" style={{marginTop: 10}} href={spaceMapUrl(space.id)}>
+            작성한 결과 보러가기
+          </a>
+        )}
 
         {confirmStart && elsewhere && (
           <ElsewhereWarning
@@ -207,10 +254,6 @@ function Intro({space, shareUrl, nickname, elsewhere, startsQuiz, onNicknameChan
           />
         )}
 
-        <ul className="notes">
-          <li>응답은 <b>24시간 뒤 자동 삭제</b>됩니다.</li>
-          <li>회사·부서·사번은 수집하지 않습니다.</li>
-        </ul>
       </div>
 
       <div className="invite-row">
@@ -244,7 +287,7 @@ function Pick({space, nickname, doneSets, elsewhere, evictedSet, onReuse, onFres
   return (
     <section>
       <p className="eyebrow">스페이스 {space.name} · {space.id}</p>
-      <h1 style={{fontSize: 25, margin: '6px 0 8px'}}>전에 답한 걸 그대로 쓸까요?</h1>
+      <h1 style={{fontSize: 22, margin: '6px 0 8px'}}>전에 답한 걸 그대로 쓸까요?</h1>
       <p className="muted" style={{fontSize: 15}}>
         이 브라우저에 끝낸 응답 {doneSets.length}벌이 남아 있습니다. 고르면 60문항을 다시 답하지 않고
         <b> {nickname}</b>(으)로 이 스페이스에 그대로 제출됩니다.
@@ -280,7 +323,7 @@ function Pick({space, nickname, doneSets, elsewhere, evictedSet, onReuse, onFres
                   <b>{nickname}</b>(으)로 <b>{space.name}</b>에 제출되고, 앞 화면 지도에 바로 나타납니다.
                 </p>
                 <p className="small muted">
-                  올린 결과는 <b>직접 지울 수 없습니다</b> — 24시간 뒤 자동으로 사라집니다.
+                  올린 결과는 <b>직접 지울 수 없고</b>, 스페이스가 지워질 때까지 지도에 남습니다.
                 </p>
                 {evictedSet && (
                   <p className="small">
@@ -519,7 +562,12 @@ function Result({result, saveState, spaceId, onRetry, onRetryNickname, onAgain}:
   );
 }
 
-export function ParticipantApp({space, shareUrl}: {space: SpaceRow; shareUrl: string}) {
+export function ParticipantApp({space, token, shareUrl, sharedWith}: {
+  space: SpaceRow;
+  token: string;
+  shareUrl: string;
+  sharedWith: SpaceSummary[];
+}) {
   const room = space.id;
   // 진행 중에 보관소가 바뀔 일이 없으니 한 번만 읽는다.
   const stored = useMemo(() => loadStore(), []);
@@ -562,9 +610,9 @@ export function ParticipantApp({space, shareUrl}: {space: SpaceRow; shareUrl: st
     submissionId = submissionIdRef.current
   ) => {
     setSaveState({status: 'saving', code: '', error: ''});
-    const response = await saveResult({
+    // room은 보내지 않는다 — 서버가 출입증을 검증한 스페이스로 못박는다.
+    const response = await saveResult(room, token, {
       id: submissionId,
-      room,
       nickname: nextNickname,
       code: nextResult.code,
       primary_type: nextResult.primary,
@@ -622,8 +670,10 @@ export function ParticipantApp({space, shareUrl}: {space: SpaceRow; shareUrl: st
       {screen === 'intro' && (
         <Intro
           space={space}
+          token={token}
           shareUrl={shareUrl}
           nickname={nickname}
+          sharedWith={sharedWith}
           elsewhere={elsewhere}
           startsQuiz={doneSets.length === 0}
           onNicknameChange={setNickname}

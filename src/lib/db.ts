@@ -1,36 +1,61 @@
-import {createClient} from '@supabase/supabase-js';
+// 서버와 이야기하는 유일한 곳.
+//
+// ⚠ 여기에는 supabase-js가 없습니다. 예전에는 브라우저가 anon 키로 results를 직접
+//   읽고 썼지만, 함께보기를 만들면서 그 권한을 통째로 걷어냈습니다 — 화면에서
+//   비밀번호를 물어도 API를 직접 두드리면 남의 스페이스 결과가 읽혔기 때문입니다
+//   (6_server_side_results). 이제 결과는 전부 Edge Function을 거칩니다:
+//     - 읽기: space-views.fetch-results (host 출입증 + grant 확인)
+//     - 쓰기: spaces.save-result / check-nickname (출입증 확인)
+//   덕분에 브라우저 번들에서 supabase-js도 함께 빠졌습니다.
+
 import {CONFIG} from '../config.ts';
 import type {Totals, TypeCode} from '../../assets/data.ts';
-import {isNicknameUniqueViolation, isResultIdUniqueViolation, validateNickname} from './nickname-rules.ts';
+import {validateNickname} from './nickname-rules.ts';
 
 export {SPACE_NAME_MAX, SPACE_PASSWORD_MAX, SPACE_PASSWORD_MIN} from './space-rules.ts';
 
-const COLUMNS = 'id,room,nickname,code,primary_type,totals,charm,bark,x,y,created_at';
-
-/** 스페이스에서 브라우저가 볼 수 있는 전부. 비밀번호 해시와 공유 토큰은 서버에만 있다. */
+/** 스페이스에서 브라우저가 볼 수 있는 전부. 비밀번호 해시와 토큰들은 서버에만 있다. */
 export interface SpaceRow {
   id: string;
   name: string;
+  icon_id: string;
   created_at: string;
   updated_at: string;
+}
+
+/** 스페이스 요약. 함께보기 선택 목록과 공유 고지에 쓴다. */
+export interface SpaceSummary {
+  id: string;
+  name: string;
+  icon_id: string;
+}
+
+/** 홈에 공개하는 활성 스페이스 요약. 비밀번호 해시와 공유 토큰은 포함하지 않는다. */
+export interface ActiveSpaceRow {
+  id: string;
+  name: string;
+  icon_id: string;
+  participant_count: number;
+  created_at: string;
+  last_activity_at: string;
 }
 
 /** 관리자 화면은 초대 링크를 만들어야 해서 공유 토큰까지 받는다. */
 export interface AdminSpaceRow extends SpaceRow {
   share_token: string;
   has_password: boolean;
-  /** 살아 있는 참가자 수. 서버가 세지 못했으면 null — 0명과 구분한다. */
+  /** 참가자 수. 서버가 세지 못했으면 null — 0명과 구분한다. */
   result_count: number | null;
 }
 
-/** results 테이블에서 읽어오는 행. expires_at은 조회하지 않는다 (schema.sql). */
+/** results 테이블에서 읽어오는 행. */
 export interface ResultRow {
   id: string;
   room: string;
   nickname: string;
   code: string;
   primary_type: TypeCode;
-  /** 채점 버전이 다른 행이 24시간 동안 남아 있을 수 있어 _version으로 구분한다. */
+  /** 채점 버전이 다른 행이 섞일 수 있어 _version으로 구분한다. */
   totals: Totals & {_version?: number};
   charm: number;
   bark: number;
@@ -39,26 +64,61 @@ export interface ResultRow {
   created_at: string;
 }
 
-/** created_at·expires_at은 DB 기본값이 채운다. id는 재시도 멱등성을 위해 클라이언트가 고정할 수 있다. */
-export type NewResultRow = Omit<ResultRow, 'id' | 'created_at'> & {id?: string};
+/**
+ * 함께보기가 돌려주는 행. 어느 스페이스에서 왔는지가 붙는다.
+ *
+ * 단일 지도에서도 같은 타입이다 — 결과를 읽는 길이 하나뿐이라 지도도 한 가지 행만
+ * 다루면 된다. 기준 스페이스의 행이면 source_space.id === space.id다.
+ */
+export interface MapResultRow extends ResultRow {
+  source_space: SpaceSummary | null;
+}
+
+/** 함께보기에 넣을 수 있는 스페이스. 인원수는 상한을 미리 막는 데 쓴다. */
+export interface AvailableSource extends SpaceSummary {
+  result_count: number;
+}
+
+/** created_at은 DB 기본값이 채운다. id는 재시도 멱등성을 위해 클라이언트가 고정한다. */
+export interface NewResult {
+  id?: string;
+  nickname: string;
+  code: string;
+  primary_type: TypeCode;
+  totals: Totals & {_version?: number};
+  charm: number;
+  bark: number;
+  x: number;
+  y: number;
+}
 
 export type SaveResponse =
   | {ok: true; row: ResultRow}
   | {ok: false; code: string; error: string};
 
-export type FetchResponse =
-  | {ok: true; rows: ResultRow[]}
-  | {ok: false; rows: ResultRow[]; error: string};
+export type MapFetchResponse =
+  | {
+    ok: true;
+    rows: MapResultRow[];
+    availableSources: AvailableSource[];
+    /** 수락을 기다리는 제안. 지도 아래에 수락 버튼을 띄울 근거다. */
+    pendingOffers: SpaceSummary[];
+  }
+  | {ok: false; code: string; error: string; deniedSourceIds?: string[]};
 
 export type EnterReason = 'password-required' | 'password-wrong' | 'not-found' | 'rate-limited' | 'error';
 
 export type EnterResponse =
-  | {ok: true; space: SpaceRow; token: string}
+  | {ok: true; space: SpaceRow; token: string; sharedWith: SpaceSummary[]}
   | {ok: false; reason: EnterReason; error: string};
 
 export type CreateSpaceResponse =
   | {ok: true; space: SpaceRow; token: string}
   | {ok: false; code: string; error: string};
+
+export type ActiveSpacesResponse =
+  | {ok: true; spaces: ActiveSpaceRow[]}
+  | {ok: false; spaces: ActiveSpaceRow[]; code: string; error: string};
 
 export type SpaceNameCheckResponse =
   | {ok: true; available: boolean; code?: string; error?: string}
@@ -75,33 +135,6 @@ export type AdminSpaceResponse =
 export type AdminResultsResponse =
   | {ok: true; rows: ResultRow[]}
   | {ok: false; code: string; error: string};
-
-const client = createClient(CONFIG.url, CONFIG.anonKey, {
-  auth: {persistSession: false},
-  realtime: {params: {eventsPerSecond: 5}}
-});
-
-function friendly(raw: unknown): string {
-  const msg = String((raw as {message?: string} | null)?.message || raw || '');
-  if (/failed to fetch|networkerror|load failed|fetch failed|typeerror/i.test(msg)) {
-    return '네트워크에 연결하지 못했습니다. 사내망이 막고 있을 수 있어요 — LTE로 바꿔서 다시 해보세요.';
-  }
-  if (/results_charm_check/i.test(msg)) {
-    return '데이터베이스가 아직 40문항 점수 범위를 사용 중입니다. schema.sql의 60문항 마이그레이션을 적용해주세요.';
-  }
-  if (/results_room_space_fkey|foreign key/i.test(msg)) {
-    return '이 스페이스가 삭제되었거나 존재하지 않습니다. 만든 사람에게 새 초대 링크를 받아주세요.';
-  }
-  if (/public\.spaces|schema cache/i.test(msg)) {
-    return '스페이스 기능이 아직 데이터베이스에 적용되지 않았습니다. 새 schema.sql을 실행해주세요.';
-  }
-  if (/row-level security|permission denied/i.test(msg)) {
-    return '저장 권한이 없습니다. RLS 정책을 확인하세요.';
-  }
-  if (/정원|cap/i.test(msg)) return '이 방의 정원(200명)이 찼습니다.';
-  if (/duplicate|unique/i.test(msg)) return '이미 제출된 결과입니다.';
-  return msg || '알 수 없는 오류';
-}
 
 /** status 0은 요청 자체가 못 나간 경우다. */
 interface FunctionCall {
@@ -144,6 +177,9 @@ function unreachable(name: string): string {
 /** 요청이 못 나갔을 때(status 0)는 callFunction이 이미 설명을 채워준다. */
 const statusSuffix = (status: number) => (status ? ` (${status})` : '');
 
+const failCode = (body: Record<string, unknown>, status: number) =>
+  String(body.code || (status ? `HTTP_${status}` : 'NETWORK_UNREACHABLE'));
+
 /**
  * 비밀번호나 공유 토큰을 서버에 확인시키고, 통과하면 스페이스 정보와 토큰을 받는다.
  * 검증은 전적으로 Edge Function에서 일어난다 — anon 키로는 spaces를 읽을 수 없다.
@@ -154,7 +190,12 @@ export async function enterSpace(
 ): Promise<EnterResponse> {
   const {status, body} = await callFunction('spaces', {action: 'enter', id, ...credentials});
   if (status === 200 && body.ok) {
-    return {ok: true, space: body.space as SpaceRow, token: String(body.token || '')};
+    return {
+      ok: true,
+      space: body.space as SpaceRow,
+      token: String(body.token || ''),
+      sharedWith: (body.sharedWith as SpaceSummary[]) || []
+    };
   }
   const reason = (typeof body.reason === 'string' ? body.reason : 'error') as EnterReason;
   return {
@@ -164,15 +205,33 @@ export async function enterSpace(
   };
 }
 
-export async function createSpace(values: {name: string; password: string}): Promise<CreateSpaceResponse> {
+export async function createSpace(values: {
+  name: string;
+  password: string;
+  iconId: string;
+}): Promise<CreateSpaceResponse> {
   const {status, body} = await callFunction('spaces', {action: 'create', ...values});
   if (status === 201 && body.ok) {
     return {ok: true, space: body.space as SpaceRow, token: String(body.token || '')};
   }
   return {
     ok: false,
-    code: String(body.code || (status ? `HTTP_${status}` : 'NETWORK_UNREACHABLE')),
+    code: failCode(body, status),
     error: String(body.error || `스페이스를 만들지 못했습니다${statusSuffix(status)}`)
+  };
+}
+
+/** 최근 24시간 안에 참가 결과가 있는 잠긴 스페이스를 최근 활동순으로 불러온다. */
+export async function fetchActiveSpaces(): Promise<ActiveSpacesResponse> {
+  const {status, body} = await callFunction('spaces', {action: 'list-active'});
+  if (status === 200 && body.ok) {
+    return {ok: true, spaces: (body.spaces as ActiveSpaceRow[]) || []};
+  }
+  return {
+    ok: false,
+    spaces: [],
+    code: failCode(body, status),
+    error: String(body.error || `활성 스페이스를 불러오지 못했습니다${statusSuffix(status)}`)
   };
 }
 
@@ -188,7 +247,7 @@ export async function checkSpaceName(name: string): Promise<SpaceNameCheckRespon
   }
   return {
     ok: false,
-    code: String(body.code || (status ? `HTTP_${status}` : 'NETWORK_UNREACHABLE')),
+    code: failCode(body, status),
     error: String(body.error || `이름 중복을 확인하지 못했습니다${statusSuffix(status)}`)
   };
 }
@@ -197,14 +256,14 @@ export async function checkSpaceName(name: string): Promise<SpaceNameCheckRespon
 export async function adminSpaceRequest(
   action: 'list' | 'create' | 'update' | 'delete',
   password: string,
-  values: {id?: string; name?: string; spacePassword?: string} = {}
+  values: {id?: string; name?: string; spacePassword?: string; iconId?: string} = {}
 ): Promise<AdminSpaceResponse> {
   const {status, body} = await callFunction('admin-spaces', {action, password, ...values});
   if (status !== 200) {
     return {
       ok: false,
       spaces: [],
-      code: String(body.code || (status ? `HTTP_${status}` : 'NETWORK_UNREACHABLE')),
+      code: failCode(body, status),
       error: String(body.error || `관리자 요청 실패${statusSuffix(status)}`)
     };
   }
@@ -220,114 +279,164 @@ export async function adminSpaceResults(password: string, id: string): Promise<A
   if (status !== 200) {
     return {
       ok: false,
-      code: String(body.code || (status ? `HTTP_${status}` : 'NETWORK_UNREACHABLE')),
+      code: failCode(body, status),
       error: String(body.error || `참가자 데이터를 불러오지 못했습니다${statusSuffix(status)}`)
     };
   }
   return {ok: true, rows: (body.results as ResultRow[]) || []};
 }
 
-export async function saveResult(row: NewResultRow): Promise<SaveResponse> {
-  const findCommittedSubmission = async (): Promise<ResultRow | null> => {
-    if (!row.id) return null;
-    const {data, error} = await client.from('results').select(COLUMNS).eq('id', row.id).maybeSingle();
-    if (error || !data) return null;
-    const existing = data as ResultRow;
-    return existing.room === row.room
-      && existing.nickname === row.nickname
-      && existing.code === row.code
-      && existing.primary_type === row.primary_type
-      ? existing
-      : null;
+export async function saveResult(
+  spaceId: string, token: string, result: NewResult
+): Promise<SaveResponse> {
+  const {status, body} = await callFunction('spaces', {
+    action: 'save-result', id: spaceId, token, result
+  });
+  if (status === 200 && body.ok) return {ok: true, row: body.row as ResultRow};
+  return {
+    ok: false,
+    code: failCode(body, status),
+    error: String(body.error || `결과를 저장하지 못했습니다${statusSuffix(status)}`)
   };
-
-  try {
-    const {data, error} = await client
-      .from('results')
-      .insert(row)
-      .select(COLUMNS)
-      .single();
-
-    if (error) {
-      if (isResultIdUniqueViolation(error)) {
-        const committed = await findCommittedSubmission();
-        if (committed) return {ok: true, row: committed};
-      }
-      if (isNicknameUniqueViolation(error)) {
-        return {
-          ok: false,
-          code: 'NICKNAME_DUPLICATE',
-          error: '이 스페이스에서 이미 사용 중인 닉네임입니다.'
-        };
-      }
-      return {ok: false, code: `DB_${error.code || 'SAVE_FAILED'}`, error: friendly(error)};
-    }
-    return {ok: true, row: data as ResultRow};
-  } catch (error) {
-    const committed = await findCommittedSubmission().catch(() => null);
-    if (committed) return {ok: true, row: committed};
-    return {ok: false, code: 'NETWORK_UNREACHABLE', error: friendly(error)};
-  }
 }
 
 /** 시작 버튼의 빠른 확인. 실제 저장 경쟁은 DB unique 제약이 최종 차단한다. */
-export async function checkNickname(room: string, value: string): Promise<NicknameCheckResponse> {
+export async function checkNickname(
+  spaceId: string, token: string, value: string
+): Promise<NicknameCheckResponse> {
   const issue = validateNickname(value);
   if (issue) return {ok: false, code: issue.code, error: issue.message};
 
-  try {
-    const {data, error} = await client
-      .from('results')
-      .select('id')
-      .eq('room', room)
-      .eq('nickname', value.trim())
-      .limit(1);
-
-    if (error) return {ok: false, code: 'NICKNAME_CHECK_FAILED', error: friendly(error)};
-    if ((data || []).length > 0) {
-      return {
-        ok: true,
-        available: false,
-        code: 'NICKNAME_DUPLICATE',
-        error: '이 스페이스에서 이미 사용 중인 닉네임입니다.'
-      };
-    }
-    return {ok: true, available: true};
-  } catch (error) {
-    return {ok: false, code: 'NETWORK_UNREACHABLE', error: friendly(error)};
+  const {status, body} = await callFunction('spaces', {
+    action: 'check-nickname', id: spaceId, token, nickname: value.trim()
+  });
+  if (status === 200 && body.ok) {
+    return {
+      ok: true,
+      available: Boolean(body.available),
+      code: body.code === 'NICKNAME_DUPLICATE' ? 'NICKNAME_DUPLICATE' : undefined,
+      error: typeof body.error === 'string' ? body.error : undefined
+    };
   }
-}
-
-export async function fetchRoom(room: string): Promise<FetchResponse> {
-  try {
-    const {data, error} = await client
-      .from('results')
-      .select(COLUMNS)
-      .eq('room', room)
-      .order('created_at', {ascending: true});
-
-    if (error) return {ok: false, rows: [], error: friendly(error)};
-    return {ok: true, rows: (data || []) as ResultRow[]};
-  } catch (error) {
-    return {ok: false, rows: [], error: friendly(error)};
-  }
-}
-
-export function watchRoom(
-  room: string,
-  onInsert: (row: ResultRow) => void,
-  onStatus?: (status: string) => void
-): () => void {
-  const channel = client
-    .channel(`room:${room}`)
-    .on(
-      'postgres_changes',
-      {event: 'INSERT', schema: 'public', table: 'results', filter: `room=eq.${room}`},
-      payload => onInsert(payload.new as ResultRow)
-    )
-    .subscribe(status => onStatus?.(status));
-
-  return () => {
-    client.removeChannel(channel);
+  return {
+    ok: false,
+    code: failCode(body, status),
+    error: String(body.error || `닉네임을 확인하지 못했습니다${statusSuffix(status)}`)
   };
 }
+
+/**
+ * 지도가 그릴 모든 것. sourceSpaceIds가 비어 있으면 단일 지도다.
+ *
+ * 권한이 없는 스페이스가 섞여 있으면 아무 데이터도 주지 않고 실패하되(fail closed),
+ * 어떤 ID가 빠졌는지는 deniedSourceIds로 알려준다 — 열려 있던 화면이 스스로 줄어들
+ * 수 있어야 하기 때문이다.
+ */
+export async function fetchMapResults(
+  hostSpaceId: string, hostToken: string, sourceSpaceIds: readonly string[] = []
+): Promise<MapFetchResponse> {
+  const {status, body} = await callFunction('space-views', {
+    action: 'fetch-results', hostSpaceId, hostToken, sourceSpaceIds
+  });
+  if (status === 200 && body.ok) {
+    return {
+      ok: true,
+      rows: (body.rows as MapResultRow[]) || [],
+      availableSources: (body.availableSources as AvailableSource[]) || [],
+      pendingOffers: (body.pendingOffers as SpaceSummary[]) || []
+    };
+  }
+  return {
+    ok: false,
+    code: failCode(body, status),
+    error: String(body.error || `데이터를 불러오지 못했습니다${statusSuffix(status)}`),
+    deniedSourceIds: Array.isArray(body.deniedSourceIds) ? body.deniedSourceIds as string[] : undefined
+  };
+}
+
+// ── 공유 관리 ──────────────────────────────────────────────────────
+// 전부 스페이스 비밀번호가 필요하다. 출입증으로는 아무것도 바꿀 수 없다.
+//
+// 공유는 양방향이다 — 수락하면 서로를 본다. 그래서 "누가 주고 누가 받나"가 아니라
+// "누가 먼저 제안했나"(incoming)만 남는다.
+
+export type ShareState = 'none' | 'pending' | 'active' | 'ended';
+
+/** 공유 대상 목록의 한 줄. 화면은 state와 incoming으로 버튼을 고른다. */
+export interface ShareCandidate extends SpaceSummary {
+  state: ShareState;
+  /** 상대가 먼저 제안했나. pending일 때 수락 버튼을 띄울지 정한다. */
+  incoming: boolean;
+}
+
+export interface ShareView {
+  space: SpaceSummary | null;
+  state: ShareState;
+  incoming: boolean;
+  requested_at: string;
+  accepted_at: string | null;
+  visible_from: string | null;
+}
+
+export type ShareableResponse =
+  | {ok: true; space: SpaceSummary; spaces: ShareCandidate[]; limit: number}
+  | {ok: false; code: string; error: string};
+
+export type ShareActionResponse =
+  | {ok: true; share: ShareView}
+  | {ok: false; code: string; error: string};
+
+/**
+ * 공유할 수 있는 스페이스 전부 + 지금 상태.
+ *
+ * ⚠ 이름과 입장 코드가 실려 온다. 비밀번호를 확인한 뒤에만 준다.
+ * 검색은 브라우저가 이 목록 안에서 한다 — 타이핑마다 서버를 두드리지 않는다.
+ */
+export async function listShareableSpaces(
+  spaceId: string, password: string
+): Promise<ShareableResponse> {
+  const {status, body} = await callFunction('space-views', {action: 'list-shareable', spaceId, password});
+  if (status === 200 && body.ok) {
+    return {
+      ok: true,
+      space: body.space as SpaceSummary,
+      spaces: (body.spaces as ShareCandidate[]) || [],
+      limit: Number(body.limit || 0)
+    };
+  }
+  return {
+    ok: false,
+    code: failCode(body, status),
+    error: String(body.error || `공유할 스페이스를 불러오지 못했습니다${statusSuffix(status)}`)
+  };
+}
+
+async function shareAction(
+  action: 'share' | 'accept' | 'unshare',
+  spaceId: string,
+  partnerSpaceId: string,
+  password: string,
+  failure: string
+): Promise<ShareActionResponse> {
+  const {status, body} = await callFunction('space-views', {action, spaceId, partnerSpaceId, password});
+  if ((status === 200 || status === 201) && body.ok) {
+    return {ok: true, share: body.share as ShareView};
+  }
+  return {
+    ok: false,
+    code: failCode(body, status),
+    error: String(body.error || `${failure}${statusSuffix(status)}`)
+  };
+}
+
+/** 공유 제안. 상대가 수락해야 발효된다. */
+export const shareSpace = (spaceId: string, partnerSpaceId: string, password: string) =>
+  shareAction('share', spaceId, partnerSpaceId, password, '공유를 제안하지 못했습니다');
+
+/** 받은 제안 수락. 이 순간부터 서로 본다. */
+export const acceptShare = (spaceId: string, partnerSpaceId: string, password: string) =>
+  shareAction('accept', spaceId, partnerSpaceId, password, '공유를 수락하지 못했습니다');
+
+/** 제안 취소·거절·공유 종료가 모두 같은 일이다. 양쪽 다 할 수 있다. */
+export const unshareSpace = (spaceId: string, partnerSpaceId: string, password: string) =>
+  shareAction('unshare', spaceId, partnerSpaceId, password, '공유를 해제하지 못했습니다');

@@ -28,7 +28,8 @@ function DangerConfirm({lead, onCancel, onConfirm}: DangerProps) {
         다시 쓰려면 60문항을 처음부터 답해야 합니다.
       </p>
       <p className="small muted">
-        이미 지도에 올라간 결과는 지워지지 않습니다 — 그건 24시간 뒤 자동으로 사라집니다.
+        이미 지도에 올라간 결과는 여기서 지워지지 않습니다 — 그건 스페이스가 지워질 때까지
+        남습니다. 여기서 지우는 건 이 브라우저에 남은 응답 한 벌입니다.
       </p>
       <div className="danger-actions">
         <button type="button" className="btn ghost" onClick={onCancel}>취소</button>
@@ -179,7 +180,7 @@ export function ProfileApp() {
     <main className="wrap">
       <section>
         <p className="eyebrow">PROFILE</p>
-        <h1 style={{fontSize: 26, margin: '6px 0 8px'}}>내 응답</h1>
+        <h1 style={{fontSize: 23, margin: '6px 0 8px'}}>내 응답</h1>
         <p className="muted" style={{fontSize: 15}}>
           이 브라우저에 남아 있는 응답입니다. 다른 스페이스에 들어가서 다시 답하기 귀찮을 때
           <b> 최근 {DONE_MAX}벌</b> 중에 골라 그대로 낼 수 있습니다.

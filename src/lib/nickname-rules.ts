@@ -1,3 +1,10 @@
+// 닉네임 입력 규칙. 화면이 미리 걸러주는 데까지가 여기 몫이고, 최종 판정은 DB의
+// unique 제약과 CHECK가 한다.
+//
+// PostgREST의 23505를 가려내던 두 함수는 _shared/spaces.ts로 옮겼습니다 — 결과 저장이
+// 서버로 넘어가면서 DB 오류를 보는 쪽도 서버뿐이라서요. 브라우저는 이제 서버가 붙여준
+// 코드(NICKNAME_DUPLICATE 등)만 받습니다.
+
 export const NICKNAME_MAX = 16;
 
 export type NicknameValidationCode = 'NICKNAME_REQUIRED' | 'NICKNAME_TOO_LONG';
@@ -14,20 +21,4 @@ export function validateNickname(value: string): NicknameIssue | null {
     return {code: 'NICKNAME_TOO_LONG', message: `닉네임은 ${NICKNAME_MAX}자 이하여야 합니다.`};
   }
   return null;
-}
-
-/** PostgREST의 unique 위반이 스페이스 내 닉네임 충돌인지 판별한다. */
-export function isNicknameUniqueViolation(error: unknown): boolean {
-  const value = error as {code?: string; message?: string; details?: string} | null;
-  if (value?.code !== '23505') return false;
-  const text = `${value.message || ''} ${value.details || ''}`;
-  return /results_room_nickname_key|key\s*\(room\s*,\s*nickname\)/i.test(text);
-}
-
-/** 응답 유실 뒤 같은 제출을 재시도했는지 확인하기 위한 primary-key 충돌 판별. */
-export function isResultIdUniqueViolation(error: unknown): boolean {
-  const value = error as {code?: string; message?: string; details?: string} | null;
-  if (value?.code !== '23505') return false;
-  const text = `${value.message || ''} ${value.details || ''}`;
-  return /results_pkey|key\s*\(id\)/i.test(text);
 }

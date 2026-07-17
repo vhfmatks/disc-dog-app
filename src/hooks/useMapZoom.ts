@@ -3,7 +3,6 @@ import type {PointerEvent as ReactPointerEvent, MouseEvent as ReactMouseEvent} f
 
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 3;
-const STEP = 0.5;
 /** 이 픽셀보다 많이 움직였으면 클릭이 아니라 드래그로 본다. */
 const DRAG_SLOP = 4;
 
@@ -18,9 +17,7 @@ interface Pan {
  * 지도를 확대하고 드래그로 훑어보게 한다.
  * 확대 배율은 CSS transform으로 얹으므로 SVG 내부 좌표 계산은 그대로 둔다.
  *
- * 확대하는 길은 셋이다: 두 손가락 핀치(폰), 트랙패드 핀치(ctrl+휠), 그리고 버튼.
- * 버튼은 지도 밖 도구 줄에 있다 — 네 귀퉁이가 전부 사분면 그림이라 지도 위에
- * 얹으면 뭘 가리게 된다.
+ * 확대하는 길은 두 손가락 핀치(폰)와 트랙패드 핀치(ctrl+휠)다.
  */
 export function useMapZoom() {
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -53,9 +50,6 @@ export function useMapZoom() {
     setZoom(atZoom);
     setPan(current => (atZoom === MIN_ZOOM ? {x: 0, y: 0} : clampPan(current, atZoom)));
   }, [clampPan]);
-
-  const zoomIn = useCallback(() => zoomTo(zoom + STEP), [zoom, zoomTo]);
-  const zoomOut = useCallback(() => zoomTo(zoom - STEP), [zoom, zoomTo]);
 
   /** 두 손가락 사이 거리. 핀치는 이 값의 비율로만 판단한다. */
   const spreadOf = (pointers: Map<number, Pan>) => {
@@ -150,10 +144,6 @@ export function useMapZoom() {
     viewportRef,
     zoom,
     pan,
-    canZoomIn: zoom < MAX_ZOOM,
-    canZoomOut: zoom > MIN_ZOOM,
-    zoomIn,
-    zoomOut,
     viewportProps: {onPointerDown, onPointerMove, onPointerUp: endDrag, onPointerCancel: endDrag, onClickCapture}
   };
 }

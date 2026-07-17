@@ -7,3 +7,8 @@ verify_jwt = false
 # 신규 publishable key는 게이트웨이의 legacy JWT 검사 대상이 아니다.
 # 이 함수는 요청 본문의 ADMIN_PASSWORD를 자체 검증한다.
 verify_jwt = false
+
+[functions.space-views]
+# 함께보기도 로그인이 없다. 게이트는 이 함수가 직접 건다 — 관리 토큰(제안·수락)과
+# 입장 토큰(결과 읽기)을 스스로 확인하고, grant는 매 요청마다 DB에서 다시 읽는다.
+verify_jwt = false

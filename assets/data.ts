@@ -395,81 +395,104 @@ export function blendNote(code: string): string {
 }
 
 // ── 강아지 얼굴 SVG ────────────────────────────────────────────────
-// 외부 이미지 의존성 없이 인라인으로 그린다. viewBox 0 0 100 100 고정.
+// 외부 이미지 의존성 없이 인라인으로 그린다. 34~130px에서 공통 사용하므로
+// 귀·얼굴형·무늬를 품종별 식별 요소로 삼는다. viewBox는 0 0 100 100 고정.
 
 const FACES: Record<TypeCode, string> = {
-  // 진돗개 — 곧게 선 삼각 귀, 황토색
+  // 진돗개 — 곧게 선 귀, 쐐기형 얼굴, 황토색 이중모
   D: `
-    <path d="M25 42 L28 11 L47 31 Z" fill="#B87A2C"/>
-    <path d="M75 42 L72 11 L53 31 Z" fill="#B87A2C"/>
-    <path d="M29 39 L31 19 L43 32 Z" fill="#F3D9A6"/>
-    <path d="M71 39 L69 19 L57 32 Z" fill="#F3D9A6"/>
-    <ellipse cx="50" cy="56" rx="27" ry="26" fill="#D9A441"/>
-    <ellipse cx="50" cy="70" rx="15.5" ry="12" fill="#F5E7C8"/>
-    <ellipse cx="39" cy="52" rx="3.4" ry="4.2" fill="#2A2118"/>
-    <ellipse cx="61" cy="52" rx="3.4" ry="4.2" fill="#2A2118"/>
-    <circle cx="40.2" cy="50.6" r="1.1" fill="#fff"/>
-    <circle cx="62.2" cy="50.6" r="1.1" fill="#fff"/>
-    <ellipse cx="50" cy="65" rx="5" ry="3.6" fill="#2A2118"/>
-    <path d="M50 68.6 V73.5 M50 73.5 q-4.5 4 -8.5 0.5 M50 73.5 q4.5 4 8.5 0.5" stroke="#2A2118" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+    <g data-breed="jindo" stroke-linejoin="round">
+      <path d="M27 43C23 31 24 17 29 7c8 7 14 17 17 29Z" fill="#CA8739" stroke="#76491F" stroke-width="1.8"/>
+      <path d="M73 43c4-12 3-26-2-36-8 7-14 17-17 29Z" fill="#CA8739" stroke="#76491F" stroke-width="1.8"/>
+      <path d="M29 34c-1-7 0-14 2-19 5 5 8 11 10 18Z" fill="#F4C9A2"/>
+      <path d="M71 34c1-7 0-14-2-19-5 5-8 11-10 18Z" fill="#F4C9A2"/>
+      <path d="M50 27c-16 0-25 11-24 29 0 10 5 19 12 25 7 6 17 6 24 0 7-6 12-15 12-25 1-18-8-29-24-29Z" fill="#DFA64D" stroke="#815324" stroke-width="1.8"/>
+      <path d="M29 58c2 10 8 18 15 22-5 1-9 0-12-2l1-5-5 1 2-6-4-1c1-3 2-6 3-9Zm42 0c-2 10-8 18-15 22 5 1 9 0 12-2l-1-5 5 1-2-6 4-1c-1-3-2-6-3-9Z" fill="#C88835"/>
+      <path d="M35 37c4-5 9-7 15-7s11 2 15 7c-5-2-10-3-15-3s-10 1-15 3Z" fill="#F3C977"/>
+      <path d="M36 62c1-7 7-11 14-11s13 4 14 11c3 12-4 22-14 22S33 74 36 62Z" fill="#FFF0D4"/>
+      <path d="M35 47c3-2 7-2 10 0m10 0c3-2 7-2 10 0" fill="none" stroke="#8B5728" stroke-width="1.5" stroke-linecap="round"/>
+      <ellipse cx="40" cy="51.5" rx="3.5" ry="4.3" fill="#302018"/>
+      <ellipse cx="60" cy="51.5" rx="3.5" ry="4.3" fill="#302018"/>
+      <circle cx="41.3" cy="50" r="1.2" fill="#FFF"/><circle cx="61.3" cy="50" r="1.2" fill="#FFF"/>
+      <ellipse cx="34.5" cy="60" rx="3.4" ry="1.8" fill="#E98E7B" opacity=".45"/>
+      <ellipse cx="65.5" cy="60" rx="3.4" ry="1.8" fill="#E98E7B" opacity=".45"/>
+      <path d="M44.5 64c1-3.5 10-3.5 11 0 0 3.5-2.5 5.5-5.5 5.5s-5.5-2-5.5-5.5Z" fill="#302018"/>
+      <path d="M50 69v3.5m0 0c-3.5 4-7.5 4-10 1m10-1c3.5 4 7.5 4 10 1" fill="none" stroke="#302018" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M46.5 75c1.5 5 5.5 6 7 0" fill="#EF7181" stroke="#B64E5E" stroke-width="1"/>
+    </g>`,
 
-  // 비숑 프리제 — 둥근 곱슬 퍼프, 흰색
+  // 비숑 프리제 — 겹친 컬 퍼프, 작은 얼굴, 흰색 털
   I: `
-    <g fill="#EDE4D4">
-      <circle cx="26" cy="40" r="12"/><circle cx="74" cy="40" r="12"/>
-      <circle cx="32" cy="24" r="12"/><circle cx="68" cy="24" r="12"/>
-      <circle cx="50" cy="19" r="13"/>
-      <circle cx="22" cy="58" r="12"/><circle cx="78" cy="58" r="12"/>
-    </g>
-    <circle cx="50" cy="50" r="33" fill="#FAF5EA"/>
-    <g fill="#FDFBF6">
-      <circle cx="34" cy="30" r="10"/><circle cx="66" cy="30" r="10"/><circle cx="50" cy="26" r="11"/>
-    </g>
-    <ellipse cx="50" cy="57" rx="21" ry="19" fill="#FDFBF6"/>
-    <ellipse cx="41" cy="51" rx="3.4" ry="4" fill="#241E1A"/>
-    <ellipse cx="59" cy="51" rx="3.4" ry="4" fill="#241E1A"/>
-    <circle cx="42.2" cy="49.7" r="1.1" fill="#fff"/>
-    <circle cx="60.2" cy="49.7" r="1.1" fill="#fff"/>
-    <ellipse cx="50" cy="62" rx="4.6" ry="3.4" fill="#241E1A"/>
-    <path d="M50 65.4 V69.5 M50 69.5 q-4 3.6 -7.5 0.5 M50 69.5 q4 3.6 7.5 0.5" stroke="#241E1A" stroke-width="1.7" fill="none" stroke-linecap="round"/>`,
+    <g data-breed="bichon" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="50" cy="50" r="36" fill="#ECE8EF"/>
+      <g fill="#FBFAF7">
+        <circle cx="50" cy="16" r="12"/><circle cx="66" cy="20" r="11"/>
+        <circle cx="79" cy="31" r="11"/><circle cx="84" cy="47" r="11"/>
+        <circle cx="80" cy="64" r="11"/><circle cx="69" cy="77" r="11"/>
+        <circle cx="52" cy="83" r="11"/><circle cx="35" cy="80" r="11"/>
+        <circle cx="21" cy="69" r="11"/><circle cx="16" cy="53" r="11"/>
+        <circle cx="20" cy="37" r="11"/><circle cx="33" cy="23" r="11"/>
+      </g>
+      <circle cx="50" cy="50" r="30" fill="#FFFEFC"/>
+      <circle cx="42" cy="50" r="4.5" fill="#252122"/><circle cx="58" cy="50" r="4.5" fill="#252122"/>
+      <circle cx="43.4" cy="48.4" r="1.4" fill="#FFF"/><circle cx="59.4" cy="48.4" r="1.4" fill="#FFF"/>
+      <circle cx="40.8" cy="51.6" r=".65" fill="#FFF"/><circle cx="56.8" cy="51.6" r=".65" fill="#FFF"/>
+      <ellipse cx="35.5" cy="59.5" rx="4.8" ry="2.4" fill="#F39DA8" opacity=".52"/><ellipse cx="64.5" cy="59.5" rx="4.8" ry="2.4" fill="#F39DA8" opacity=".52"/>
+      <circle cx="43.8" cy="63" r="7.8" fill="#FFF7EE"/>
+      <circle cx="56.2" cy="63" r="7.8" fill="#FFF7EE"/>
+      <ellipse cx="50" cy="68" rx="7.2" ry="5.4" fill="#FFF7EE"/>
+      <path d="M45 61.5c1-3.8 9-3.8 10 0 0 3.4-2.4 5.2-5 5.2s-5-1.8-5-5.2Z" fill="#252122"/>
+      <path d="M50 66.5v2.5m0 0c-3 3.5-6.5 3.5-8.5 1m8.5-1c3 3.5 6.5 3.5 8.5 1" fill="none" stroke="#252122" stroke-width="1.6"/>
+      <path d="M47 71.5c1.2 4.5 4.8 5.2 6 0" fill="#F47589" stroke="#B94B5E" stroke-width=".9"/>
+    </g>`,
 
-  // 골든리트리버 — 늘어진 귀, 금색
+  // 골든리트리버 — 긴 깃털 귀, 넓은 주둥이, 금색 장모
   S: `
-    <ellipse cx="21" cy="57" rx="9.5" ry="19" fill="#B9762F"/>
-    <ellipse cx="79" cy="57" rx="9.5" ry="19" fill="#B9762F"/>
-    <ellipse cx="50" cy="54" rx="26.5" ry="25" fill="#E0A458"/>
-    <path d="M50 29 q-14 0 -19 14 q10 -7 19 -7 q9 0 19 7 q-5 -14 -19 -14 Z" fill="#EFC98A"/>
-    <ellipse cx="50" cy="69" rx="15" ry="12.5" fill="#F6E3C0"/>
-    <ellipse cx="39.5" cy="51" rx="3.5" ry="4.2" fill="#3A2616"/>
-    <ellipse cx="60.5" cy="51" rx="3.5" ry="4.2" fill="#3A2616"/>
-    <circle cx="40.7" cy="49.6" r="1.1" fill="#fff"/>
-    <circle cx="61.7" cy="49.6" r="1.1" fill="#fff"/>
-    <ellipse cx="50" cy="64" rx="5.2" ry="3.7" fill="#3A2616"/>
-    <path d="M50 67.7 V72 M50 72 q-5 4.5 -9 0.5 M50 72 q5 4.5 9 0.5" stroke="#3A2616" stroke-width="1.8" fill="none" stroke-linecap="round"/>
-    <path d="M50 72 q0 5 5 6" stroke="#E8607A" stroke-width="4" fill="none" stroke-linecap="round"/>`,
+    <g data-breed="golden-retriever" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M31 38c-9-4-16 3-17 15-1 12 4 23 12 30l2-6 4 3 1-7 4 2 1-28Z" fill="#B66F2F" stroke="#7A4822" stroke-width="1.8"/>
+      <path d="M69 38c9-4 16 3 17 15 1 12-4 23-12 30l-2-6-4 3-1-7-4 2-1-28Z" fill="#B66F2F" stroke="#7A4822" stroke-width="1.8"/>
+      <path d="M25 44c-5 9-4 21 2 30m48-30c5 9 4 21-2 30" fill="none" stroke="#E3A259" stroke-width="2.5" opacity=".9"/>
+      <path d="M50 24c-15 0-24 10-24 28 0 11 4 21 11 28 7 7 19 7 26 0 7-7 11-17 11-28 0-18-9-28-24-28Z" fill="#E5A751" stroke="#8B5727" stroke-width="1.8"/>
+      <path d="M32 39c3-11 10-17 18-17s15 6 18 17c-5-4-11-6-18-6s-13 2-18 6Z" fill="#F6CC7F"/>
+      <path d="M37 29c4-5 8-7 13-7s9 2 13 7c-4-2-8-3-13-3s-9 1-13 3Z" fill="#FFE0A0"/>
+      <path d="M39 35c3-3 7-4 10-1m2 0c3-3 7-2 10 1" fill="none" stroke="#F9D58C" stroke-width="1.5"/>
+      <path d="M34 61c1-9 8-14 16-14s15 5 16 14c3 14-4 24-16 24S31 75 34 61Z" fill="#FFE4B5"/>
+      <path d="M34 46c3-2 7-2 11 0m10 0c4-2 8-2 11 0" fill="none" stroke="#9C622D" stroke-width="1.5"/>
+      <ellipse cx="40" cy="51" rx="3.7" ry="4.4" fill="#38241A"/><ellipse cx="60" cy="51" rx="3.7" ry="4.4" fill="#38241A"/>
+      <circle cx="41.4" cy="49.5" r="1.2" fill="#FFF"/><circle cx="61.4" cy="49.5" r="1.2" fill="#FFF"/>
+      <ellipse cx="33.5" cy="60" rx="3.6" ry="1.8" fill="#E78D7C" opacity=".4"/>
+      <ellipse cx="66.5" cy="60" rx="3.6" ry="1.8" fill="#E78D7C" opacity=".4"/>
+      <path d="M44 63c1-4 11-4 12 0 0 4-3 6-6 6s-6-2-6-6Z" fill="#38241A"/>
+      <path d="M50 69v3.5m0 0c-4 4.5-8.5 4.5-11 1m11-1c4 4.5 8.5 4.5 11 1" fill="none" stroke="#38241A" stroke-width="1.8"/>
+      <path d="M46 75c2 7 6.5 8 8.5 0" fill="#F07183" stroke="#B8485B" stroke-width="1"/>
+    </g>`,
 
-  // 보더콜리 — 반접힌 귀, 흑백 마스크
+  // 보더콜리 — 비대칭 반접힌 귀, 흑백 블레이즈, 긴 볼털
   C: `
-    <path d="M24 44 L26 16 L45 33 Z" fill="#2E2A28"/>
-    <path d="M76 44 L74 16 L55 33 Z" fill="#2E2A28"/>
-    <path d="M26 16 L40 24 L28 30 Z" fill="#4A4442"/>
-    <path d="M74 16 L60 24 L72 30 Z" fill="#4A4442"/>
-    <ellipse cx="50" cy="56" rx="27" ry="26" fill="#2E2A28"/>
-    <path d="M50 31 q-9 12 -9 27 q0 12 9 21 q9 -9 9 -21 q0 -15 -9 -27 Z" fill="#F5F1E8"/>
-    <ellipse cx="50" cy="70" rx="14" ry="11.5" fill="#F5F1E8"/>
-    <ellipse cx="38.5" cy="52" rx="3.4" ry="4.2" fill="#6BA3C4"/>
-    <ellipse cx="61.5" cy="52" rx="3.4" ry="4.2" fill="#6BA3C4"/>
-    <circle cx="38.5" cy="52" r="1.7" fill="#1A1512"/>
-    <circle cx="61.5" cy="52" r="1.7" fill="#1A1512"/>
-    <circle cx="39.6" cy="50.7" r="1" fill="#fff"/>
-    <circle cx="62.6" cy="50.7" r="1" fill="#fff"/>
-    <ellipse cx="50" cy="65" rx="5" ry="3.6" fill="#1A1512"/>
-    <path d="M50 68.6 V73.5 M50 73.5 q-4.5 4 -8.5 0.5 M50 73.5 q4.5 4 8.5 0.5" stroke="#1A1512" stroke-width="1.8" fill="none" stroke-linecap="round"/>`
+    <g data-breed="border-collie" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M28 43c-3-10-2-21 2-30 8 6 13 14 16 24Z" fill="#303033" stroke="#171619" stroke-width="1.8"/>
+      <path d="M69 39c7-6 15-5 18 0-1 10-6 17-15 20l-8-13Z" fill="#303033" stroke="#171619" stroke-width="1.8"/>
+      <path d="M31 34c-1-5 0-9 2-13 4 4 7 9 9 14Z" fill="#9A7F7F"/>
+      <path d="M72 42c4-3 8-3 11-1-2 5-5 9-10 11Z" fill="#79686C"/>
+      <path d="M50 27c-16 0-26 10-26 28 0 6 1 11 4 16l-5 3 8 2-1 7 9-3c6 8 16 9 22 0l9 3-1-7 8-2-5-3c3-5 4-10 4-16 0-18-10-28-26-28Z" fill="#303033" stroke="#171619" stroke-width="1.8"/>
+      <path d="M50 28c-6 6-9 13-8 21l3 11-7 8c1 10 6 17 12 17s11-7 12-17l-7-8 3-11c1-8-2-15-8-21Z" fill="#FFFDF7"/>
+      <path d="M29 44c5-8 11-12 18-14l-5 21c-5-1-10-3-13-7Zm42 0c-5-8-11-12-18-14l5 21c5-1 10-3 13-7Z" fill="#3D3D41"/>
+      <path d="M32 62c2-9 9-14 18-14s16 5 18 14c3 14-5 24-18 24S29 76 32 62Z" fill="#FFFDF7"/>
+      <path d="M34 47c3-2 7-2 11 0m10 0c4-2 8-2 11 0" fill="none" stroke="#19181B" stroke-width="1.5"/>
+      <ellipse cx="40" cy="51.5" rx="3.7" ry="4.4" fill="#694629"/><ellipse cx="60" cy="51.5" rx="3.7" ry="4.4" fill="#65A7CD"/>
+      <circle cx="40" cy="52" r="2.2" fill="#1D1A1B"/><circle cx="60" cy="52" r="2.2" fill="#1D1A1B"/>
+      <circle cx="41.3" cy="50.2" r="1.15" fill="#FFF"/><circle cx="61.3" cy="50.2" r="1.15" fill="#FFF"/>
+      <ellipse cx="33.5" cy="61" rx="3.5" ry="1.8" fill="#E49AA0" opacity=".35"/>
+      <ellipse cx="66.5" cy="61" rx="3.5" ry="1.8" fill="#E49AA0" opacity=".35"/>
+      <path d="M44 64c1-4 11-4 12 0 0 4-3 6-6 6s-6-2-6-6Z" fill="#292629"/>
+      <path d="M50 70v3.5m0 0c-4 4.5-8.5 4.5-11 1m11-1c4 4.5 8.5 4.5 11 1" fill="none" stroke="#292629" stroke-width="1.8"/>
+      <path d="M46 76c2 6 6 7 8 0" fill="#EF7183" stroke="#B8485B" stroke-width="1"/>
+    </g>`
 };
 
 /** 유형별 강아지 얼굴 SVG 마크업. */
 export function dogFace(type: TypeCode, {size = 100, cls = ''}: {size?: number; cls?: string} = {}): string {
-  return `<svg class="dog-face ${cls}" viewBox="0 0 100 100" width="${size}" height="${size}"
+  return `<svg class="dog-face ${cls}" data-dog-type="${type}" viewBox="0 0 100 100" width="${size}" height="${size}"
     role="img" aria-label="${TYPES[type].breed}" focusable="false">${FACES[type]}</svg>`;
 }
 

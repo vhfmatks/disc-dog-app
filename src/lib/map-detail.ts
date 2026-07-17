@@ -1,6 +1,6 @@
 import {rel} from '../../assets/data.ts';
 import type {Relation} from '../../assets/data.ts';
-import type {ResultRow} from './db.ts';
+import type {MapResultRow, ResultRow} from './db.ts';
 
 export interface RelationGroup {
   kind: Relation;
@@ -9,27 +9,63 @@ export interface RelationGroup {
 }
 
 type MapCoordinate = Pick<ResultRow, 'id' | 'x' | 'y'>;
+type MapPrimaryType = Pick<ResultRow, 'id' | 'primary_type'>;
 
-const RELATION_LABEL: Record<Relation, string> = {
+export const RELATION_LABEL: Record<Relation, string> = {
   good: '통하는 사이',
   bad: '설명이 필요한 사이',
   same: '같은 유형'
 };
 
-const RELATION_ORDER: Relation[] = ['good', 'bad', 'same'];
+export const RELATION_ORDER: Relation[] = ['good', 'bad', 'same'];
 
-/** 선택한 참가자를 기준으로 빈 관계를 제외한 표시 그룹을 만든다. */
-export function relationGroups(row: ResultRow, rows: ResultRow[]): RelationGroup[] {
+/** 함께보기에서 사람을 가리키는 이름. 밖에서 온 사람만 스페이스를 앞에 붙인다. */
+export function personLabel(
+  row: Pick<MapResultRow, 'room' | 'nickname' | 'source_space'>,
+  hostSpaceId: string
+): string {
+  if (row.room === hostSpaceId) return row.nickname;
+  return `${row.source_space?.name || row.room} · ${row.nickname}`;
+}
+
+/**
+ * 선택한 참가자를 기준으로 빈 관계를 제외한 표시 그룹을 만든다.
+ *
+ * 함께보기에서는 같은 닉네임이 여러 스페이스에 있을 수 있다. 이름만 늘어놓으면
+ * "보리, 보리"가 되어 누구를 말하는지 알 수 없으므로, 밖에서 온 사람에게는
+ * 스페이스를 붙인다.
+ */
+export function relationGroups(
+  row: MapResultRow, rows: MapResultRow[], hostSpaceId: string
+): RelationGroup[] {
   const names: Record<Relation, string[]> = {good: [], bad: [], same: []};
 
   rows.forEach(other => {
-    if (other.id !== row.id) names[rel(row.primary_type, other.primary_type)].push(other.nickname);
+    if (other.id === row.id) return;
+    names[rel(row.primary_type, other.primary_type)].push(personLabel(other, hostSpaceId));
   });
 
   return RELATION_ORDER.flatMap(kind => names[kind].length
     ? [{kind, label: RELATION_LABEL[kind], names: names[kind]}]
     : []
   );
+}
+
+/**
+ * 선택한 사람에게서 뻗는 관계선. 거리로 자르지 않고 모두와 잇되, 켜둔 관계만 남긴다 —
+ * 몇 명까지 볼지가 아니라 어떤 사이를 볼지가 지도를 읽는 축이다.
+ */
+export function relationLinks<T extends MapPrimaryType>(
+  selected: T,
+  rows: readonly T[],
+  kinds: readonly Relation[]
+): Array<{row: T; kind: Relation}> {
+  const on = new Set(kinds);
+  return rows.flatMap(row => {
+    if (row.id === selected.id) return [];
+    const kind = rel(selected.primary_type, row.primary_type);
+    return on.has(kind) ? [{row, kind}] : [];
+  });
 }
 
 /**

@@ -7,15 +7,24 @@ import {ProfileApp} from './ProfileApp.tsx';
 import {AppHeader} from './components/AppHeader.tsx';
 import {CopyButton} from './components/CopyButton.tsx';
 import {SpaceNameStatus, ValidationStatus} from './components/FieldStatus.tsx';
+import {SpaceIcon} from './components/SpaceIcon.tsx';
 import {useSpaceNameCheck} from './hooks/useSpaceNameCheck.ts';
-import {clearToken, loadToken, readShareTokenFromUrl, saveToken, stripShareTokenFromUrl} from './lib/access.ts';
-import {SPACE_NAME_MAX, SPACE_PASSWORD_MIN, createSpace, enterSpace} from './lib/db.ts';
-import type {SpaceRow} from './lib/db.ts';
+import {
+  clearToken, loadToken, readShareTokenFromUrl, saveToken, stripShareTokenFromUrl
+} from './lib/access.ts';
+import {formatWhen} from './lib/answer-store.ts';
+import {SPACE_NAME_MAX, SPACE_PASSWORD_MIN, createSpace, enterSpace, fetchActiveSpaces} from './lib/db.ts';
+import type {ActiveSpaceRow, SpaceRow, SpaceSummary} from './lib/db.ts';
 import {validatePasswordConfirmation, validateSpacePassword} from './lib/space-rules.ts';
 import {
-  createUrl, homeUrl, isSpaceId, normalizeSpaceId, spaceShareUrl, spaceUrl, useRoute
+  createUrl, homeUrl, spacePasswordUrl, spaceShareUrl,
+  stripPasswordGateFromUrl, useRoute
 } from './lib/router.ts';
 import type {Route} from './lib/router.ts';
+import {
+  DEFAULT_SPACE_ICON_ID, SPACE_ICONS, isSpaceIconId
+} from './lib/space-icons.ts';
+import type {SpaceIconId} from './lib/space-icons.ts';
 import '../assets/style.css';
 
 // GitHub Pages의 404.html이 전달한 원래 clean URL을 복원한다. 공유 링크의 #k=...도
@@ -23,41 +32,81 @@ import '../assets/style.css';
 const redirectedPath = new URLSearchParams(window.location.search).get('__spa');
 if (redirectedPath?.startsWith('/')) window.history.replaceState(null, '', redirectedPath);
 
+type ActiveSpacesState =
+  | {status: 'loading'; spaces: ActiveSpaceRow[]}
+  | {status: 'ready'; spaces: ActiveSpaceRow[]}
+  | {status: 'error'; spaces: ActiveSpaceRow[]; message: string};
+
+const safeIconId = (value: string): SpaceIconId =>
+  isSpaceIconId(value) ? value : DEFAULT_SPACE_ICON_ID;
+
 function HomeApp() {
-  const [spaceId, setSpaceId] = useState('');
-  const valid = isSpaceId(spaceId);
+  const [reload, setReload] = useState(0);
+  const [activeSpaces, setActiveSpaces] = useState<ActiveSpacesState>({status: 'loading', spaces: []});
+
+  useEffect(() => {
+    let active = true;
+    setActiveSpaces(current => ({status: 'loading', spaces: current.spaces}));
+    fetchActiveSpaces().then(response => {
+      if (!active) return;
+      setActiveSpaces(response.ok
+        ? {status: 'ready', spaces: response.spaces}
+        : {status: 'error', spaces: [], message: response.error}
+      );
+    });
+    return () => { active = false; };
+  }, [reload]);
 
   return (
-    <main className="wrap home-wrap">
-      <section className="card">
-        <p className="eyebrow">DOG TYPE WORKSHOP</p>
-        <h1>어느 스페이스로 갈까요?</h1>
-        <p className="muted admin-lead">
-          초대 링크를 받았다면 그 링크를 열면 바로 들어갑니다.
-          입장 코드만 알고 있다면 아래에 입력하세요 — 비밀번호를 한 번 물어봅니다.
-        </p>
-        <form onSubmit={event => {
-          event.preventDefault();
-          if (valid) window.location.assign(spaceUrl(spaceId));
-        }}>
-          <div className="field">
-            <label htmlFor="home-space-id">입장 코드</label>
-            <input
-              id="home-space-id"
-              className="input"
-              placeholder="예: hazel-corgi-427"
-              autoCapitalize="off"
-              autoCorrect="off"
-              spellCheck={false}
-              value={spaceId}
-              onChange={event => setSpaceId(normalizeSpaceId(event.target.value))}
-            />
+    <main className="wrap home-wrap home-with-spaces">
+      <section className="active-spaces" aria-labelledby="active-spaces-title" aria-busy={activeSpaces.status === 'loading'}>
+        <header className="active-spaces-head">
+          <div>
+            <p className="eyebrow">ACTIVE NOW</p>
+            <h2 id="active-spaces-title">지금 활발한 스페이스</h2>
           </div>
-          <button className="btn block" type="submit" disabled={!valid}>스페이스 들어가기</button>
-        </form>
+          <span className="small muted">최근 24시간</span>
+        </header>
+        <p className="small muted active-spaces-note">
+          참여 결과가 올라온 스페이스입니다. 들어갈 때 생성자가 정한 비밀번호가 필요합니다.
+        </p>
 
-        <div className="or-rule"><span>또는</span></div>
-        <a className="btn ghost block" href={createUrl()}>+ 새 스페이스 만들기</a>
+        {activeSpaces.status === 'loading' && activeSpaces.spaces.length === 0 && (
+          <div className="active-spaces-status">스페이스를 불러오는 중…</div>
+        )}
+        {activeSpaces.status === 'error' && (
+          <div className="active-spaces-status" role="status">
+            <p>목록을 불러오지 못했습니다.</p>
+            <p className="small muted">{activeSpaces.message}</p>
+            <button type="button" className="btn ghost sm" onClick={() => setReload(value => value + 1)}>
+              다시 시도
+            </button>
+          </div>
+        )}
+        {activeSpaces.status === 'ready' && activeSpaces.spaces.length === 0 && (
+          <div className="active-spaces-status">아직 진행 중인 스페이스가 없습니다.</div>
+        )}
+        {activeSpaces.spaces.length > 0 && (
+          <ul className="active-space-list">
+            {activeSpaces.spaces.map(space => (
+              <li key={space.id}>
+                <a className="active-space-card" href={spacePasswordUrl(space.id)}>
+                  <span className="active-space-icon" aria-hidden="true">
+                    <SpaceIcon iconId={safeIconId(space.icon_id)} size={54} decorative />
+                  </span>
+                  <span className="active-space-main">
+                    <strong>{space.name}</strong>
+                    <span className="active-space-code">/{space.id}</span>
+                    <span className="small muted">
+                      참여자 {space.participant_count}명 · {formatWhen(Date.parse(space.last_activity_at))} 활동
+                    </span>
+                  </span>
+                  <span className="active-space-enter">비밀번호 입력 <span aria-hidden="true">→</span></span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </main>
   );
@@ -76,7 +125,10 @@ function SpaceCreated({space, token}: {space: SpaceRow; token: string}) {
     <main className="wrap home-wrap">
       <section className="card">
         <p className="eyebrow">READY</p>
-        <h1>{space.name} 🐾</h1>
+        <div className="created-space-title">
+          <SpaceIcon iconId={safeIconId(space.icon_id)} size={64} decorative />
+          <h1>{space.name}</h1>
+        </div>
         <p className="muted admin-lead">
           스페이스가 열렸습니다. 팀원이나 친구에게 초대 링크를 보내세요.
         </p>
@@ -114,6 +166,20 @@ function SpaceCreated({space, token}: {space: SpaceRow; token: string}) {
           </p>
         </div>
 
+        <div className="share-box manage-share-box">
+          <label>방금 정한 비밀번호</label>
+          <p className="small">
+            이 비밀번호는 입장에만 쓰는 게 아닙니다. 지도 아래에서 <b>다른 스페이스와
+            함께보기를 맺고 끊을 때</b> 이걸 물어봅니다 — 이 스페이스의 관리 비밀번호이기도
+            합니다.
+          </p>
+          <p className="small muted">
+            그래서 비밀번호를 아는 사람은 누구나 이 스페이스의 결과를 다른 스페이스에
+            공유할 수 있습니다. 참가자에게는 <b>초대 링크</b>를 주면 비밀번호 없이 들어오니,
+            굳이 비밀번호를 알릴 이유가 없습니다.
+          </p>
+        </div>
+
         <a className="btn block" href={shareUrl}>스페이스 들어가기</a>
         <p className="small muted center" style={{marginTop: 14}}>
           비밀번호는 다시 볼 수 없습니다. 잊어버렸더라도 초대 링크만 있으면 계속 들어갈 수 있어요.
@@ -125,6 +191,7 @@ function SpaceCreated({space, token}: {space: SpaceRow; token: string}) {
 
 function CreateApp() {
   const [name, setName] = useState('');
+  const [iconId, setIconId] = useState<SpaceIconId>(DEFAULT_SPACE_ICON_ID);
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false);
@@ -142,13 +209,10 @@ function CreateApp() {
   const valid = nameReady && password.length >= SPACE_PASSWORD_MIN && !passwordIssue && password === confirm;
 
   return (
-    <main className="wrap home-wrap">
+    <main className="wrap home-wrap create-wrap">
       <section className="card">
         <p className="eyebrow">NEW SPACE</p>
         <h1>새 스페이스 만들기</h1>
-        <p className="muted admin-lead">
-          이름과 비밀번호만 정하면 끝입니다. 입장 코드와 초대 링크는 만들면서 자동으로 나옵니다.
-        </p>
 
         <form onSubmit={async event => {
           event.preventDefault();
@@ -159,9 +223,10 @@ function CreateApp() {
           const submittedPassword = password;
           try {
             if (nameCheck.status !== 'error' && !await checkNameNow()) return;
-            const response = await createSpace({name: submittedName, password: submittedPassword});
-            if (response.ok) setCreated({space: response.space, token: response.token});
-            else {
+            const response = await createSpace({name: submittedName, password: submittedPassword, iconId});
+            if (response.ok) {
+              setCreated({space: response.space, token: response.token});
+            } else {
               setError({code: response.code, message: response.error});
               if (response.code === 'SPACE_NAME_DUPLICATE') void checkNameNow(true);
             }
@@ -176,7 +241,7 @@ function CreateApp() {
               className="input"
               maxLength={SPACE_NAME_MAX}
               autoFocus
-              placeholder="예: 디자인팀 7월 워크숍"
+              placeholder="예: 우리 가족"
               value={name}
               disabled={busy}
               aria-describedby="space-name-status"
@@ -193,6 +258,28 @@ function CreateApp() {
               hint="참가자 화면과 진행자 화면에 이 이름이 표시됩니다."
             />
           </div>
+
+          <fieldset className="space-icon-picker" disabled={busy}>
+            <legend>대표 강아지</legend>
+            <p className="small muted">좌우로 밀어 둘러본 뒤, 스페이스를 대표할 한 마리를 골라주세요.</p>
+            <div className="space-icon-options" tabIndex={0} aria-label="대표 강아지 아이콘 목록">
+              {SPACE_ICONS.map(icon => (
+                <label className="space-icon-choice" key={icon.id}>
+                  <input
+                    type="radio"
+                    name="space-icon"
+                    value={icon.id}
+                    checked={iconId === icon.id}
+                    onChange={() => setIconId(icon.id)}
+                  />
+                  <span>
+                    <SpaceIcon iconId={icon.id} size={46} decorative />
+                    <b>{icon.label}</b>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
 
           <div className="field">
             <label htmlFor="space-password">비밀번호</label>
@@ -261,7 +348,7 @@ function CreateApp() {
 
 interface SpaceGateProps {
   spaceId: string;
-  onEnter: (space: SpaceRow, token: string) => void;
+  onEnter: (space: SpaceRow, token: string, sharedWith: SpaceSummary[]) => void;
 }
 
 function SpaceGate({spaceId, onEnter}: SpaceGateProps) {
@@ -287,7 +374,7 @@ function SpaceGate({spaceId, onEnter}: SpaceGateProps) {
           setBusy(false);
           if (response.ok) {
             saveToken(spaceId, response.token);
-            onEnter(response.space, response.token);
+            onEnter(response.space, response.token, response.sharedWith);
           } else {
             setError(response.error);
           }
@@ -315,11 +402,16 @@ function SpaceGate({spaceId, onEnter}: SpaceGateProps) {
 type GateState =
   | {status: 'checking'}
   | {status: 'locked'}
-  | {status: 'ready'; space: SpaceRow; token: string}
+  | {status: 'ready'; space: SpaceRow; token: string; sharedWith: SpaceSummary[]}
   | {status: 'missing'}
   | {status: 'error'; message: string};
 
-function SpaceScreen({spaceId, screen}: {spaceId: string; screen: 'participant' | 'map'}) {
+function SpaceScreen({spaceId, screen, passwordRequired = false, withSpaceIds}: {
+  spaceId: string;
+  screen: 'participant' | 'map';
+  passwordRequired?: boolean;
+  withSpaceIds?: string[];
+}) {
   const [state, setState] = useState<GateState>({status: 'checking'});
 
   useEffect(() => {
@@ -333,11 +425,20 @@ function SpaceScreen({spaceId, screen}: {spaceId: string; screen: 'participant' 
       stripShareTokenFromUrl();
     }
 
-    enterSpace(spaceId, {token: fromUrl || loadToken(spaceId)}).then(response => {
+    // 홈 목록/코드 입력은 공개 진입점이다. 예전에 받은 출입증이 이 브라우저에 남아
+    // 있어도 이번에는 생성자가 정한 비밀번호를 다시 확인한다.
+    if (passwordRequired && !fromUrl) clearToken(spaceId);
+
+    enterSpace(spaceId, {token: fromUrl || (passwordRequired ? '' : loadToken(spaceId))}).then(response => {
       if (!active) return;
       if (response.ok) {
         saveToken(spaceId, response.token);
-        setState({status: 'ready', space: response.space, token: response.token});
+        setState({
+          status: 'ready',
+          space: response.space,
+          token: response.token,
+          sharedWith: response.sharedWith
+        });
       } else if (response.reason === 'password-required') {
         clearToken(spaceId);   // 스페이스가 새로 만들어졌다면 옛 토큰은 이제 쓸모없다
         setState({status: 'locked'});
@@ -349,7 +450,7 @@ function SpaceScreen({spaceId, screen}: {spaceId: string; screen: 'participant' 
     });
 
     return () => { active = false; };
-  }, [spaceId]);
+  }, [passwordRequired, spaceId]);
 
   if (state.status === 'checking') {
     return <main className="wrap"><div className="empty">스페이스를 확인하는 중…</div></main>;
@@ -359,7 +460,10 @@ function SpaceScreen({spaceId, screen}: {spaceId: string; screen: 'participant' 
     return (
       <SpaceGate
         spaceId={spaceId}
-        onEnter={(space, token) => setState({status: 'ready', space, token})}
+        onEnter={(space, token, sharedWith) => {
+          stripPasswordGateFromUrl();
+          setState({status: 'ready', space, token, sharedWith});
+        }}
       />
     );
   }
@@ -390,15 +494,37 @@ function SpaceScreen({spaceId, screen}: {spaceId: string; screen: 'participant' 
 
   const shareUrl = spaceShareUrl(state.space.id, state.token);
   return screen === 'map'
-    ? <MapApp space={state.space} shareUrl={shareUrl} />
-    : <ParticipantApp space={state.space} shareUrl={shareUrl} />;
+    ? (
+      <MapApp
+        space={state.space}
+        token={state.token}
+        shareUrl={shareUrl}
+        withSpaceIds={withSpaceIds}
+      />
+    )
+    : (
+      <ParticipantApp
+        space={state.space}
+        token={state.token}
+        shareUrl={shareUrl}
+        sharedWith={state.sharedWith}
+      />
+    );
 }
 
 function Screen({route}: {route: Route}) {
   if (route.kind === 'admin') return <AdminApp />;
   if (route.kind === 'create') return <CreateApp />;
   if (route.kind === 'profile') return <ProfileApp />;
-  if (route.kind === 'participant') return <SpaceScreen spaceId={route.spaceId} screen="participant" />;
+  if (route.kind === 'participant') {
+    return (
+      <SpaceScreen
+        spaceId={route.spaceId}
+        screen="participant"
+        passwordRequired={route.passwordRequired}
+      />
+    );
+  }
   return <HomeApp />;
 }
 
@@ -406,7 +532,9 @@ function App() {
   const route = useRoute();
 
   // 프로젝터에 띄우는 화면이다. 뒷자리에서 읽히는 게 전부라 헤더도 메뉴도 얹지 않는다.
-  if (route.kind === 'map') return <SpaceScreen spaceId={route.spaceId} screen="map" />;
+  if (route.kind === 'map') {
+    return <SpaceScreen spaceId={route.spaceId} screen="map" withSpaceIds={route.withSpaceIds} />;
+  }
 
   return (
     <>

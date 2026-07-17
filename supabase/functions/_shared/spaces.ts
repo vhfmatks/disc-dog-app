@@ -1,4 +1,4 @@
-// spaces / admin-spaces 두 함수가 함께 쓰는 조각들.
+// spaces / admin-spaces / space-views 세 함수가 함께 쓰는 조각들.
 // 비밀번호 해시와 스페이스 ID 규칙은 반드시 한 곳에만 있어야 합니다.
 
 export const corsHeaders = {
@@ -14,14 +14,33 @@ export const json = (body: unknown, status = 200, headers: Record<string, string
   });
 
 /** 브라우저에 돌려줘도 되는 컬럼. password_hash와 share_token은 절대 포함하지 않습니다. */
-export const PUBLIC_SPACE_COLUMNS = 'id,name,created_at,updated_at';
+export const PUBLIC_SPACE_COLUMNS = 'id,name,icon_id,created_at,updated_at';
 
 export const PASSWORD_MIN = 6;
 export const PASSWORD_MAX = 72;
 export const NAME_MAX = 50;
 
+/** src/lib/nickname-rules.ts와 DB의 nickname check가 같은 값을 쓴다. */
+export const NICKNAME_MAX = 16;
+
+/** 결과 한 행에서 브라우저가 볼 수 있는 전부. src/lib/db.ts의 ResultRow와 짝이다. */
+export const RESULT_COLUMNS = 'id,room,nickname,code,primary_type,totals,charm,bark,x,y,created_at';
+
+/** src/lib/space-icons.ts와 DB의 spaces_icon_id_check가 같은 목록을 사용한다. */
+export const SPACE_ICON_IDS = [
+  'corgi', 'dachshund', 'husky', 'pug', 'poodle',
+  'beagle', 'dalmatian', 'bulldog', 'chihuahua', 'maltese',
+  'samoyed', 'schnauzer', 'papillon', 'yorkshire-terrier', 'pomeranian',
+  'doberman', 'boxer', 'great-dane', 'shih-tzu', 'old-english-sheepdog'
+] as const;
+export const DEFAULT_SPACE_ICON_ID = 'corgi';
+
+export function validSpaceIconId(value: string): boolean {
+  return (SPACE_ICON_IDS as readonly string[]).includes(value);
+}
+
 /** router.ts의 예약어와 같은 목록. 스페이스 ID가 이 값이면 라우팅이 깨집니다. */
-const RESERVED_IDS = new Set(['admin', 'map', 'new', 'profile']);
+const RESERVED_IDS = new Set(['admin', 'manage', 'map', 'new', 'profile']);
 
 export function validSpaceId(id: string): boolean {
   return /^[a-z0-9-]{3,24}$/.test(id) && !RESERVED_IDS.has(id);
@@ -37,6 +56,26 @@ export function classifySpaceUniqueViolation(error: unknown): SpaceUniqueViolati
   if (/spaces_name_key|key\s*\(name\)/i.test(text)) return 'name';
   if (/spaces_pkey|key\s*\(id\)/i.test(text)) return 'id';
   return 'other';
+}
+
+// results의 23505를 가려내는 두 함수는 원래 src/lib에 있었습니다. 결과 저장이 서버로
+// 넘어오면서 PostgREST 오류를 보는 쪽도 서버뿐이라 이리로 옮겼습니다 — 브라우저는
+// 이제 이 함수들이 만든 코드(NICKNAME_DUPLICATE 등)만 받습니다.
+
+/** 스페이스 안 닉네임 충돌인가. */
+export function isNicknameUniqueViolation(error: unknown): boolean {
+  const value = error as {code?: string; message?: string; details?: string} | null;
+  if (value?.code !== '23505') return false;
+  const text = `${value.message || ''} ${value.details || ''}`;
+  return /results_room_nickname_key|key\s*\(room\s*,\s*nickname\)/i.test(text);
+}
+
+/** 응답 유실 뒤 같은 제출을 재시도했는지 확인하기 위한 primary-key 충돌 판별. */
+export function isResultIdUniqueViolation(error: unknown): boolean {
+  const value = error as {code?: string; message?: string; details?: string} | null;
+  if (value?.code !== '23505') return false;
+  const text = `${value.message || ''} ${value.details || ''}`;
+  return /results_pkey|key\s*\(id\)/i.test(text);
 }
 
 // ── 스페이스 ID 생성 ───────────────────────────────────────────────

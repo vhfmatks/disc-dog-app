@@ -2,11 +2,14 @@ import {useEffect, useMemo, useRef, useState} from 'react';
 import {TYPES} from '../assets/data.ts';
 import {CopyButton} from './components/CopyButton.tsx';
 import {SpaceNameStatus, ValidationStatus} from './components/FieldStatus.tsx';
+import {SpaceIcon} from './components/SpaceIcon.tsx';
 import {useSpaceNameCheck} from './hooks/useSpaceNameCheck.ts';
 import {SPACE_NAME_MAX, adminSpaceRequest, adminSpaceResults} from './lib/db.ts';
 import type {AdminResultsResponse, AdminSpaceRow, ResultRow} from './lib/db.ts';
 import {isSpaceId, normalizeSpaceId, spaceMapShareUrl, spaceShareUrl} from './lib/router.ts';
 import {validateSpacePassword} from './lib/space-rules.ts';
+import {DEFAULT_SPACE_ICON_ID, SPACE_ICONS, isSpaceIconId} from './lib/space-icons.ts';
+import type {SpaceIconId} from './lib/space-icons.ts';
 
 const SESSION_KEY = 'dogtype:admin-password';
 
@@ -54,7 +57,7 @@ function Login({onLogin, busy, error}: LoginProps) {
 }
 
 interface SpaceFormProps {
-  onCreate: (values: {id: string; name: string; spacePassword: string}) => Promise<boolean>;
+  onCreate: (values: {id: string; name: string; spacePassword: string; iconId: SpaceIconId}) => Promise<boolean>;
   busy: boolean;
 }
 
@@ -66,6 +69,7 @@ function SpaceForm({onCreate, busy}: SpaceFormProps) {
   const [id, setId] = useState('');
   const [name, setName] = useState('');
   const [spacePassword, setSpacePassword] = useState('');
+  const [iconId, setIconId] = useState<SpaceIconId>(DEFAULT_SPACE_ICON_ID);
   const [submitting, setSubmitting] = useState(false);
   const {state: nameCheck, checkNow: checkNameNow} = useSpaceNameCheck(name);
   const passwordIssue = spacePassword ? validateSpacePassword(spacePassword, true) : null;
@@ -79,7 +83,7 @@ function SpaceForm({onCreate, busy}: SpaceFormProps) {
       event.preventDefault();
       if (!valid || locked) return;
       setSubmitting(true);
-      const submitted = {id, name: name.trim(), spacePassword};
+      const submitted = {id, name: name.trim(), spacePassword, iconId};
       try {
         if (nameCheck.status !== 'error' && !await checkNameNow()) return;
         const ok = await onCreate(submitted);
@@ -87,6 +91,7 @@ function SpaceForm({onCreate, busy}: SpaceFormProps) {
           setId('');
           setName('');
           setSpacePassword('');
+          setIconId(DEFAULT_SPACE_ICON_ID);
         } else void checkNameNow(true);
       } finally {
         setSubmitting(false);
@@ -118,7 +123,7 @@ function SpaceForm({onCreate, busy}: SpaceFormProps) {
             id="space-name"
             className="input"
             maxLength={SPACE_NAME_MAX}
-            placeholder="예: 디자인팀 7월 워크숍"
+            placeholder="예: 우리 가족"
             value={name}
             disabled={locked}
             aria-describedby="admin-space-name-status"
@@ -152,6 +157,21 @@ function SpaceForm({onCreate, busy}: SpaceFormProps) {
             hint="비우면 코드만 알면 누구나 입장"
             success={spacePassword && !passwordIssue ? '사용할 수 있는 비밀번호입니다.' : undefined}
           />
+        </div>
+        <div className="field">
+          <label htmlFor="admin-space-icon">대표 강아지</label>
+          <div className="admin-icon-select">
+            <SpaceIcon iconId={iconId} size={42} decorative />
+            <select
+              id="admin-space-icon"
+              className="input"
+              value={iconId}
+              disabled={locked}
+              onChange={event => setIconId(event.target.value as SpaceIconId)}
+            >
+              {SPACE_ICONS.map(icon => <option value={icon.id} key={icon.id}>{icon.label}</option>)}
+            </select>
+          </div>
         </div>
       </div>
       <button className="btn" type="submit" disabled={locked || !valid}>
@@ -265,6 +285,7 @@ function SpaceItem({space, busy, onUpdate, onDelete, onLoadResults}: SpaceItemPr
   // 관리자는 스페이스 비밀번호를 모른다. 출입증을 실은 링크로 열어야 게이트를 지난다.
   const shareHref = useMemo(() => spaceShareUrl(space.id, space.share_token), [space.id, space.share_token]);
   const mapHref = useMemo(() => spaceMapShareUrl(space.id, space.share_token), [space.id, space.share_token]);
+  const iconId = isSpaceIconId(space.icon_id) ? space.icon_id : DEFAULT_SPACE_ICON_ID;
 
   useEffect(() => setName(space.name), [space.name]);
 
@@ -301,7 +322,12 @@ function SpaceItem({space, busy, onUpdate, onDelete, onLoadResults}: SpaceItemPr
                 setEditing(false);
               }}>취소</button>
             </form>
-          ) : <h3>{space.name}</h3>}
+          ) : (
+            <div className="admin-space-title">
+              <SpaceIcon iconId={iconId} size={38} decorative />
+              <h3>{space.name}</h3>
+            </div>
+          )}
           <p className="small muted">{new Date(space.created_at).toLocaleString('ko-KR')} 생성</p>
         </div>
         {!editing && (
@@ -313,7 +339,7 @@ function SpaceItem({space, busy, onUpdate, onDelete, onLoadResults}: SpaceItemPr
       </div>
       <div className="admin-links">
         <a href={shareHref} target="_blank" rel="noreferrer">참가자 화면 ↗</a>
-        <a href={mapHref} target="_blank" rel="noreferrer">진행자 화면 ↗</a>
+        <a href={mapHref} target="_blank" rel="noreferrer">지도 ↗</a>
         <CopyButton value={shareHref} label="초대 링크 복사" className="" />
       </div>
       <ParticipantData spaceId={space.id} onLoad={() => onLoadResults(space.id)} />
@@ -330,7 +356,7 @@ export function AdminApp() {
 
   const request = async (
     action: AdminAction,
-    values: {id?: string; name?: string; spacePassword?: string} = {},
+    values: {id?: string; name?: string; spacePassword?: string; iconId?: string} = {},
     candidate = password
   ): Promise<boolean> => {
     setBusy(true);

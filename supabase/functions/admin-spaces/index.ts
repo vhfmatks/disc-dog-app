@@ -11,8 +11,9 @@
 
 import {createClient} from 'npm:@supabase/supabase-js@2';
 import {
-  NAME_MAX, PASSWORD_MAX, PASSWORD_MIN, PUBLIC_SPACE_COLUMNS,
-  classifySpaceUniqueViolation, corsHeaders, hashPassword, json, sameSecret, validSpaceId
+  DEFAULT_SPACE_ICON_ID, NAME_MAX, PASSWORD_MAX, PASSWORD_MIN, PUBLIC_SPACE_COLUMNS,
+  RESULT_COLUMNS, classifySpaceUniqueViolation, corsHeaders, hashPassword,
+  json, sameSecret, validSpaceIconId, validSpaceId
 } from '../_shared/spaces.ts';
 
 /**
@@ -31,25 +32,18 @@ interface Input {
   id?: string;
   name?: string;
   spacePassword?: string;
+  iconId?: string;
 }
 
 interface SpaceRecord {
   id: string;
   name: string;
+  icon_id: string;
   created_at: string;
   updated_at: string;
   share_token: string;
   password_hash: string | null;
 }
-
-/** 관리자 화면이 보는 결과 행. expires_at은 살아 있는 행을 고르는 데만 쓴다. */
-const RESULT_COLUMNS = 'id,room,nickname,code,primary_type,totals,charm,bark,x,y,created_at';
-
-// service role은 RLS를 우회하므로 만료된 행까지 다 보입니다. 그러면 안 됩니다 —
-// 참가자에게 "24시간 뒤에 사라진다"고 약속했고, pg_cron이 늦어 아직 테이블에 남아
-// 있을 뿐인 행은 이미 사라진 것으로 취급해야 합니다. 관리자에게도 마찬가지입니다.
-// 그래서 아래 두 조회는 anon에게 걸리는 results_select_live 정책과 같은 조건을
-// 손으로 겁니다.
 
 Deno.serve(async request => {
   if (request.method === 'OPTIONS') return new Response('ok', {headers: corsHeaders});
@@ -81,7 +75,7 @@ Deno.serve(async request => {
   const id = String(input.id || '').trim().toLowerCase();
   const name = String(input.name || '').trim();
   const spacePassword = String(input.spacePassword || '');
-  const nowIso = new Date().toISOString();
+  const iconId = String(input.iconId || DEFAULT_SPACE_ICON_ID);
 
   // 한 스페이스의 참가자 데이터. 목록을 다시 내려보내지 않는 유일한 액션이다.
   if (action === 'results') {
@@ -90,7 +84,6 @@ Deno.serve(async request => {
       .from('results')
       .select(RESULT_COLUMNS)
       .eq('room', id)
-      .gt('expires_at', nowIso)
       .order('created_at', {ascending: true});
     if (error) return json({code: 'RESULTS_FETCH_FAILED', error: error.message}, 500);
     return json({results: data || []});
@@ -109,8 +102,11 @@ Deno.serve(async request => {
       const code = spacePassword.length < PASSWORD_MIN ? 'PASSWORD_TOO_SHORT' : 'PASSWORD_TOO_LONG';
       return json({code, error: `비밀번호는 ${PASSWORD_MIN}자 이상 ${PASSWORD_MAX}자 이하여야 합니다.`}, 400);
     }
+    if (!validSpaceIconId(iconId)) {
+      return json({code: 'SPACE_ICON_INVALID', error: '선택할 수 없는 스페이스 아이콘입니다.'}, 400);
+    }
     const password_hash = spacePassword ? await hashPassword(spacePassword) : null;
-    const {error} = await client.from('spaces').insert({id, name, password_hash});
+    const {error} = await client.from('spaces').insert({id, name, icon_id: iconId, password_hash});
     if (error) {
       const conflict = classifySpaceUniqueViolation(error);
       if (conflict === 'name') {
@@ -152,7 +148,7 @@ Deno.serve(async request => {
 
   // 스페이스별 참가자 수. 세지 못해도 목록 자체는 내려보낸다 — 이 조회가 실패했다고
   // 관리자를 로그인에서 막을 이유가 없다. 대신 0명이라고 둘러대지 않고 null을 준다.
-  const {data: liveRows} = await client.from('results').select('room').gt('expires_at', nowIso);
+  const {data: liveRows} = await client.from('results').select('room');
   const counts = liveRows
     ? (liveRows as Array<{room: string}>).reduce((tally, row) => {
       tally.set(row.room, (tally.get(row.room) || 0) + 1);
@@ -165,6 +161,7 @@ Deno.serve(async request => {
     spaces: ((spaces || []) as SpaceRecord[]).map(space => ({
       id: space.id,
       name: space.name,
+      icon_id: space.icon_id,
       created_at: space.created_at,
       updated_at: space.updated_at,
       share_token: space.share_token,

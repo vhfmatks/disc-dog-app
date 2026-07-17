@@ -21,16 +21,55 @@ datasource db {
 model spaces {
   id            String    @id @db.Text
   name          String    @unique(map: "spaces_name_key") @db.Text
+  /// 홈 카드와 스페이스 생성 화면에 쓰는 20종 강아지 아이콘 ID.
+  icon_id       String    @default("corgi") @db.Text
   /// PBKDF2 해시. null이면 코드만 알면 들어오는 열린 스페이스.
   password_hash String?   @db.Text
   /// 초대 링크(#k=)에 실리는 출입증. anon은 이 컬럼을 읽을 수 없다 (컬럼 GRANT).
+  /// 참가자 입장에도 쓰이므로 "이 방을 만든 사람"을 증명하지는 못한다.
   share_token   String    @default(dbgenerated("replace((gen_random_uuid())::text, '-'::text, ''::text)")) @db.Text
   created_at    DateTime  @default(now()) @db.Timestamptz(6)
   updated_at    DateTime  @default(now()) @db.Timestamptz(6)
   results       results[]
+  /// 사전순으로 이 스페이스가 앞인 공유.
+  shares_as_a   space_shares[] @relation("share_a")
+  /// 사전순으로 이 스페이스가 뒤인 공유.
+  shares_as_b   space_shares[] @relation("share_b")
 }
 
-/// 참가자 한 명의 채점 결과. 24시간 뒤 pg_cron이 지운다.
+/// 두 스페이스 사이의 읽기 전용 함께보기 공유. 데이터를 옮기지 않고 조회 범위만 넓힌다.
+///
+/// **양방향이다.** 한쪽이 제안(requested_by)하고 다른 쪽이 수락(accepted_at)하면 서로를
+/// 본다 — 수락은 곧 맞교환이다. 양쪽 모두 종료(revoked_at)할 수 있다.
+///
+/// 방향이 없으므로 두 스페이스 사이의 공유는 하나뿐이어야 한다. 사전순으로 정렬해
+/// 저장하고(space_a < space_b) 그 쌍을 기본키로 삼아, (A,B)와 (B,A)가 동시에 생기는
+/// 일을 구조적으로 막는다. 상태 판정은 _shared/view-grants.ts가 한다.
+model space_shares {
+  /// 사전순으로 앞. space_shares_ordered CHECK가 순서를 강제한다.
+  space_a      String    @db.Text
+  /// 사전순으로 뒤.
+  space_b      String    @db.Text
+  /// 제안한 쪽 (space_a 또는 space_b). 수락 버튼을 어느 쪽에 띄울지 정한다.
+  requested_by String    @db.Text
+
+  requested_at DateTime  @default(now()) @db.Timestamptz(6)
+  /// 수락 시각. null이면 pending이라 양쪽 모두 아무것도 못 본다.
+  accepted_at  DateTime? @db.Timestamptz(6)
+  /// 종료 시각. 어느 쪽이 눌러도 채워진다.
+  revoked_at   DateTime? @db.Timestamptz(6)
+  /// 이 시각 이후에 만들어진 결과만 상대에게 보인다. 양쪽에 같은 값이 걸린다.
+  visible_from DateTime? @db.Timestamptz(6)
+
+  a spaces @relation("share_a", fields: [space_a], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "space_shares_a_fkey")
+  b spaces @relation("share_b", fields: [space_b], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "space_shares_b_fkey")
+
+  @@id([space_a, space_b])
+  @@index([space_a, revoked_at], map: "space_shares_a_idx")
+  @@index([space_b, revoked_at], map: "space_shares_b_idx")
+}
+
+/// 참가자 한 명의 채점 결과. 스페이스가 지워질 때까지 남는다 (7_persist_results).
 model results {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// spaces.id. 이름이 room인 건 스페이스 도입 전부터 쓰던 컬럼이라서다.
@@ -44,11 +83,9 @@ model results {
   x            Float    @db.Real
   y            Float    @db.Real
   created_at   DateTime @default(now()) @db.Timestamptz(6)
-  expires_at   DateTime @default(dbgenerated("(now() + '24:00:00'::interval)")) @db.Timestamptz(6)
   space        spaces   @relation(fields: [room], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "results_room_space_fkey")
 
   @@index([room, created_at], map: "results_room_created_idx")
-  @@index([expires_at], map: "results_expires_idx")
   @@unique([room, nickname], map: "results_room_nickname_key")
 }
 
