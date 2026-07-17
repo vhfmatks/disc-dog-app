@@ -19,6 +19,20 @@ test('지도 도구에는 확대 버튼 그룹이 없다', async () => {
   assert.match(map, /aria-label="관계선 종류"/);
 });
 
+test('발자국 아래에는 닉네임만 쓰고, 스페이스는 색이 말한다', async () => {
+  const map = await readFile(new URL('../src/MapApp.tsx', import.meta.url), 'utf8');
+
+  // 스페이스 이름까지 붙이면 라벨이 서로 밀어내 지도가 글자밭이 된다.
+  assert.match(map, /<text className="node-label"[^>]*>\{row\.nickname\}<\/text>/);
+
+  // 대신 테두리 색이 어느 스페이스인지 말한다.
+  assert.match(map, /className="node-source-ring"[^/]*stroke=\{sourceColor\}/);
+
+  // ⚠ 색은 눈으로 읽는 사람에게만 말한다. 스크린리더에는 이름을 그대로 줘야 한다 —
+  //   여기서 spaceName을 빼면 밖에서 온 사람인지 알 방법이 아예 없어진다.
+  assert.match(map, /aria-label=\{[\s\S]{0,80}foreign \? `\$\{spaceName\} 스페이스의 `/);
+});
+
 test('관리 토큰의 흔적이 코드베이스에 남아 있지 않다', async () => {
   // 비밀번호가 그 자리를 대신하면서 통째로 사라졌다. 반쯤 남으면 다음 사람이
   // "관리 링크가 어디 있지"를 찾아 헤맨다.

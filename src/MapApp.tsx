@@ -352,9 +352,13 @@ function RelationMap({
           const foreign = row.room !== hostSpaceId;
           const sourceColor = sourceColors.get(row.room);
           const spaceName = row.source_space?.name || row.room;
-          // 라벨은 밖에서 온 사람에게만 스페이스를 붙인다. 모든 노드에 붙이면 글자가
-          // 두 배가 되고, 라벨 충돌 회피(slotsFor)가 감당하지 못해 지도가 뭉갠다.
-          const label = foreign ? `${spaceName} · ${row.nickname}` : row.nickname;
+          // 발자국 아래에는 닉네임만 쓴다. 스페이스 이름까지 붙이면 라벨이 두세 배로
+          // 길어져 서로 밀어내고, 지도가 글자밭이 된다 — 지도는 점의 위치를 읽는
+          // 그림이지 명단이 아니다.
+          //
+          // 그럼 어느 스페이스 사람인지는? 노드 테두리 색이 말한다 (node-source-ring).
+          // 색으로는 부족할 때를 위해 칩 목록·상세 카드·스페이스 필터가 이름을 들고
+          // 있고, 눈으로 색을 못 읽는 사람에겐 아래 aria-label이 말해준다.
           return (
             <g
               className={classes}
@@ -385,7 +389,7 @@ function RelationMap({
               <g className={`node-paw ${freshIds.has(row.id) ? 'pop' : ''}`}>
                 <path d={PAW_D} transform="translate(-11,-11) scale(0.22)" fill={TYPES[row.primary_type].hex} />
               </g>
-              <text className="node-label" y={base} data-base={base} textAnchor="middle">{label}</text>
+              <text className="node-label" y={base} data-base={base} textAnchor="middle">{row.nickname}</text>
             </g>
           );
         })}
