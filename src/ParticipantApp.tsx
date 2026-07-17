@@ -166,13 +166,18 @@ function Intro({
       </p>
 
       {/* 사람은 자기 이름이 어느 화면에 뜨는지 모른 채로 제출하면 안 된다.
-          설문을 시작하기 전에, 닉네임 칸보다 먼저 말해준다. */}
-      {sharedWith.length > 0 && (
+          설문을 시작하기 전에, 닉네임 칸보다 먼저 말해준다.
+
+          ⚠ 공유는 소급된다 (9_share_all_results). 지금 공유가 없는 스페이스라도 나중에
+            진행자가 맺으면 오늘 낸 결과가 그쪽에 보인다. 그래서 아래 안내는 공유가
+            걸려 있든 아니든 **언제나** 나온다 — 걸려 있으면 이름을 대고 크게, 아니면
+            조용히. 이 문구가 소급 노출의 유일한 짝이다. */}
+      {sharedWith.length > 0 ? (
         <div className="callout shared-notice" style={{marginTop: 18}}>
           <b>이 스페이스의 결과는 다른 스페이스에도 표시됩니다</b>
           <p className="small" style={{marginTop: 4}}>
-            지금부터 제출되는 닉네임과 강아지 유형이 아래 스페이스 구성원의 함께보기 지도에
-            보일 수 있습니다.
+            아래 스페이스 구성원의 함께보기 지도에 이 스페이스의 닉네임과 강아지 유형이
+            보입니다. <b>이미 제출된 결과도 함께</b> 보입니다.
           </p>
           <ul className="shared-notice-list">
             {sharedWith.map(viewer => (
@@ -187,6 +192,12 @@ function Intro({
             60문항에 어떻게 답했는지는 넘어가지 않습니다.
           </p>
         </div>
+      ) : (
+        <p className="small muted shared-later" style={{marginTop: 16}}>
+          진행자가 나중에 다른 스페이스와 <b>함께보기</b>를 맺으면, 지금 내는 결과도 그쪽
+          지도에 보입니다. 넘어가는 건 닉네임과 강아지 유형뿐이고, 60문항에 어떻게
+          답했는지는 넘어가지 않습니다.
+        </p>
       )}
 
       {elsewhere && (

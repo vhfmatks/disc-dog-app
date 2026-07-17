@@ -375,7 +375,6 @@ export interface ShareView {
   incoming: boolean;
   requested_at: string;
   accepted_at: string | null;
-  visible_from: string | null;
 }
 
 export type ShareableResponse =

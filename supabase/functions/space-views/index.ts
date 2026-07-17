@@ -22,7 +22,7 @@ import {
 } from '../_shared/spaces.ts';
 import {
   MAX_ROWS, MAX_SHAREABLE, deniedSourceIds, isActive, isIncoming, normalizeSourceIds,
-  pairKey, partnerOf, shareState, withinVisibleWindow
+  pairKey, partnerOf, shareState, visibleRows
 } from '../_shared/view-grants.ts';
 import type {ShareState, SpaceShare} from '../_shared/view-grants.ts';
 
@@ -156,8 +156,7 @@ const shareView = (share: SpaceShare, me: string, space: SpaceSummary | undefine
   state: shareState(share),
   incoming: isIncoming(share, me),
   requested_at: share.requested_at,
-  accepted_at: share.accepted_at,
-  visible_from: share.visible_from
+  accepted_at: share.accepted_at
 });
 
 // ── 공유 관리 (비밀번호) ───────────────────────────────────────────
@@ -250,8 +249,7 @@ async function share(client: SupabaseClient, request: Request, input: Input): Pr
       requested_by: spaceId,
       requested_at: new Date().toISOString(),
       accepted_at: null,
-      revoked_at: null,
-      visible_from: null
+      revoked_at: null
     })
     .select('*')
     .single();
@@ -263,8 +261,9 @@ async function share(client: SupabaseClient, request: Request, input: Input): Pr
 /**
  * 제안 수락. 이 순간부터 **서로** 본다 — 수락은 맞교환이다.
  *
- * visible_from은 제안 시각이 아니라 수락 시각이다. 공유가 실제로 발효되는 순간이고,
- * 참가 화면의 고지가 걸리는 순간과도 같아야 한다. 양쪽에 같은 값이 걸린다.
+ * ⚠ 넘어가는 건 앞으로 제출될 결과만이 아니다. 양쪽 스페이스의 **기존 결과 전부**가
+ *   이 순간 서로에게 보인다 (9_share_all_results). 소급 노출이라, 수락 버튼 옆에 그
+ *   말이 적혀 있어야 한다 (ShareSpaces).
  */
 async function accept(client: SupabaseClient, request: Request, input: Input): Promise<Response> {
   const spaceId = String(input.spaceId || '').trim().toLowerCase();
@@ -291,7 +290,7 @@ async function accept(client: SupabaseClient, request: Request, input: Input): P
   const [a, b] = pairKey(spaceId, partnerId);
   const {data, error} = await client
     .from('space_shares')
-    .update({accepted_at: now, visible_from: now})
+    .update({accepted_at: now})
     .eq('space_a', a)
     .eq('space_b', b)
     .select('*')
@@ -400,7 +399,7 @@ async function fetchResults(client: SupabaseClient, input: Input): Promise<Respo
       .in('room', [hostSpaceId, ...partnerIds]);
     if (countError) return fail('RESULTS_FETCH_FAILED', countError.message, 500);
 
-    const counted = withinVisibleWindow((countRows || []) as ResultRecord[], hostSpaceId, active);
+    const counted = visibleRows((countRows || []) as ResultRecord[], hostSpaceId, active);
     const countBySpace = new Map<string, number>([hostSpaceId, ...partnerIds].map(id => [id, 0]));
     for (const row of counted) countBySpace.set(row.room, (countBySpace.get(row.room) || 0) + 1);
 
@@ -429,7 +428,7 @@ async function fetchResults(client: SupabaseClient, input: Input): Promise<Respo
     .order('created_at', {ascending: true});
   if (error) return fail('RESULTS_FETCH_FAILED', error.message, 500);
 
-  const visible = withinVisibleWindow((resultRows || []) as ResultRecord[], hostSpaceId, active);
+  const visible = visibleRows((resultRows || []) as ResultRecord[], hostSpaceId, active);
   const rows = visible.map(row => ({...row, source_space: spaces.get(row.room) || null}));
 
   return json({

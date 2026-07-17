@@ -18,7 +18,6 @@ export interface SpaceShare {
   requested_at: string;
   accepted_at: string | null;
   revoked_at: string | null;
-  visible_from: string | null;
 }
 
 export type ShareState = 'pending' | 'active' | 'ended';
@@ -137,30 +136,27 @@ export function deniedSourceIds(
 }
 
 /**
- * 수락 이후에 만들어진 결과만 남긴다.
+ * 내가 볼 수 있는 행만 남긴다: 내 스페이스의 결과와, 지금 활성 공유가 걸린 상대의 결과.
  *
- * 양방향이라 visible_from 하나가 양쪽에 똑같이 걸린다 — A가 B에게 보이기 시작하는
- * 순간과 B가 A에게 보이기 시작하는 순간이 같다.
+ * ⚠ 언제 제출됐는지는 보지 않는다. 공유를 맺으면 **그 스페이스의 결과 전부**가 넘어간다 —
+ *   공유 전에 이미 제출한 사람 것까지. 예전에는 수락 시각(visible_from) 이후 결과만
+ *   넘겼는데, 그러면 기존 스페이스끼리 연결했을 때 지도가 텅 비어 기능이 쓸모없었다.
+ *   대신 참가 화면이 "나중에 공유되면 지금 낸 결과도 함께 보인다"를 미리 고지한다
+ *   (ParticipantApp). 소급 노출이라 그 고지가 이 결정의 전부다.
  *
- * 왜 서버가 JS로 거르나: 상대마다 visible_from이 다르다. PostgREST의 or 필터로
- * 스페이스별 시각 조건을 엮을 수는 있지만, 타임스탬프의 `+`가 쿼리스트링에서 어떻게
- * 살아남는지에 권한 경계를 걸게 된다. 스페이스당 정원이 200이라 여기서 거르는 편이
- * 값싸고, 무엇보다 눈으로 읽힌다.
+ * 왜 서버가 JS로 거르나: 어차피 상대별로 판정해야 하고, 스페이스당 정원이 200이라
+ * 여기서 거르는 편이 값싸고 무엇보다 눈으로 읽힌다.
  */
-export function withinVisibleWindow<T extends {room: string; created_at: string}>(
+export function visibleRows<T extends {room: string}>(
   rows: readonly T[],
   hostSpaceId: string,
   shares: readonly SpaceShare[]
 ): T[] {
-  const visibleFrom = new Map(
+  const partners = new Set(
     shares.filter(share => involves(share, hostSpaceId) && isActive(share))
-      .map(share => [partnerOf(share, hostSpaceId), Date.parse(share.visible_from || '')])
+      .map(share => partnerOf(share, hostSpaceId))
   );
 
-  return rows.filter(row => {
-    if (row.room === hostSpaceId) return true;      // 내 스페이스의 결과는 다 본다
-    const from = visibleFrom.get(row.room);
-    if (from === undefined || Number.isNaN(from)) return false;   // 권한 없음 = 안 보임
-    return Date.parse(row.created_at) >= from;
-  });
+  // 내 스페이스이거나, 활성 공유가 걸린 상대. 그 밖은 안 보인다 (fail closed).
+  return rows.filter(row => row.room === hostSpaceId || partners.has(row.room));
 }
