@@ -117,8 +117,8 @@ export type CreateSpaceResponse =
   | {ok: false; code: string; error: string};
 
 export type ActiveSpacesResponse =
-  | {ok: true; spaces: ActiveSpaceRow[]}
-  | {ok: false; spaces: ActiveSpaceRow[]; code: string; error: string};
+  | {ok: true; spaces: ActiveSpaceRow[]; page: number; hasMore: boolean}
+  | {ok: false; spaces: ActiveSpaceRow[]; page: number; hasMore: false; code: string; error: string};
 
 export type SpaceNameCheckResponse =
   | {ok: true; available: boolean; code?: string; error?: string}
@@ -221,15 +221,23 @@ export async function createSpace(values: {
   };
 }
 
-/** 최근 24시간 안에 참가 결과가 있는 잠긴 스페이스를 최근 활동순으로 불러온다. */
-export async function fetchActiveSpaces(): Promise<ActiveSpacesResponse> {
-  const {status, body} = await callFunction('spaces', {action: 'list-active'});
+/** 최근 24시간 안에 참가 결과가 있는 잠긴 스페이스를 최근 활동순으로 한 페이지씩 불러온다. */
+export async function fetchActiveSpaces(page = 0): Promise<ActiveSpacesResponse> {
+  const safePage = Math.max(0, Math.floor(page) || 0);
+  const {status, body} = await callFunction('spaces', {action: 'list-active', page: safePage});
   if (status === 200 && body.ok) {
-    return {ok: true, spaces: (body.spaces as ActiveSpaceRow[]) || []};
+    return {
+      ok: true,
+      spaces: (body.spaces as ActiveSpaceRow[]) || [],
+      page: Number.isInteger(body.page) ? Number(body.page) : safePage,
+      hasMore: Boolean(body.hasMore)
+    };
   }
   return {
     ok: false,
     spaces: [],
+    page: safePage,
+    hasMore: false,
     code: failCode(body, status),
     error: String(body.error || `활성 스페이스를 불러오지 못했습니다${statusSuffix(status)}`)
   };

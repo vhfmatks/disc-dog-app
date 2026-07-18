@@ -1096,6 +1096,8 @@ button { font: inherit; color: inherit; }
   white-space: nowrap;
 }
 .active-space-enter { color: var(--muted); font-size: 12px; font-weight: 800; white-space: nowrap; }
+.active-spaces-more { display: grid; justify-items: center; gap: 8px; margin-top: 16px; }
+.active-spaces-more .form-error { margin: 0; text-align: center; }
 .created-space-title { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
 .admin-lead { margin-top: 8px; }
 .admin-entry {
@@ -1393,6 +1395,22 @@ button { font: inherit; color: inherit; }
 
 /* 참가자가 설문을 시작하기 전에 읽어야 하는 것. 눈에 띄어야 하지만 겁주면 안 된다. */
 .shared-notice { border-color: color-mix(in srgb, var(--yellow) 50%, var(--line)); }
+.shared-notice-summary {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  cursor: pointer; list-style: none;
+}
+.shared-notice-summary::-webkit-details-marker { display: none; }
+.shared-notice-summary::after {
+  content: '';
+  width: 8px; height: 8px; flex: none;
+  border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform .16s ease;
+}
+.shared-notice[open] .shared-notice-summary::after {
+  transform: rotate(225deg) translate(-2px, -2px);
+}
+.shared-notice-body { margin-top: 4px; }
 .shared-notice-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .shared-notice-list li {
   display: inline-flex; align-items: center; gap: 5px;
@@ -1749,3 +1767,164 @@ button { font: inherit; color: inherit; }
   .qr { border: 0; width: 320px; height: 320px; }
 }
 .qr-loading { background: var(--paper); }
+
+/* ── MSC 뇌인지 행동유형맵 ─────────────────────────────────────────── */
+
+/* 좌상단 검사 스위처 */
+.app-header-switch { position: relative; }
+.app-header-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.app-header-title:hover { color: color-mix(in srgb, var(--ink) 70%, var(--muted)); }
+.switch-caret { font-size: 10px; color: var(--muted); transition: transform .16s ease; }
+.switch-caret.open { transform: rotate(180deg); }
+.app-switch-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  min-width: 220px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 6px;
+}
+.app-switch-head {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 4px 8px 6px;
+}
+.app-switch-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 8px;
+  border-radius: 9px;
+  text-decoration: none;
+  color: var(--ink);
+  font-weight: 600;
+}
+.app-switch-item:hover { background: var(--paper); }
+.app-switch-item.on { background: color-mix(in srgb, var(--yellow) 16%, transparent); }
+.app-switch-check { margin-left: auto; color: var(--muted); }
+
+/* 좌뇌/우뇌 휠 */
+.brain-wheel {
+  display: block;
+  width: 100%;
+  max-width: 460px;
+  height: auto;
+  margin: 4px auto 0;
+}
+.wheel-sector { opacity: .12; }
+.wheel-ring { stroke: var(--line); stroke-width: 2; }
+.wheel-axis { stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 4 5; }
+.wheel-label { font-size: 15px; font-weight: 800; opacity: .9; }
+.wheel-hemi { font-size: 13px; font-weight: 700; fill: var(--muted); letter-spacing: .04em; }
+.wheel-node { cursor: default; }
+.wheel-node[role="button"] { cursor: pointer; }
+.wheel-node-ring { fill: none; stroke: var(--ink); stroke-width: 2; }
+.wheel-node.sel .wheel-node-label { font-weight: 800; }
+.wheel-node-label { font-size: 12px; fill: var(--ink); paint-order: stroke; stroke: var(--paper); stroke-width: 3px; }
+
+/* MSC 결과 카드 */
+.msc-card {
+  border-radius: var(--r);
+  padding: 24px 20px;
+  text-align: center;
+  color: #fff;
+  box-shadow: var(--shadow);
+}
+.msc-card .code {
+  display: inline-block;
+  font-weight: 800;
+  letter-spacing: .1em;
+  background: rgba(255, 255, 255, .22);
+  border-radius: 999px;
+  padding: 2px 12px;
+  font-size: 13px;
+}
+.msc-card h1 { margin: 8px 0 4px; font-size: 26px; }
+.msc-tagline { font-size: 14.5px; opacity: .95; }
+.msc-blend { font-size: 13px; opacity: .9; margin-top: 4px; }
+.msc-strengths { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+.msc-strengths span {
+  background: rgba(255, 255, 255, .2);
+  border-radius: 999px;
+  padding: 3px 11px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+/* 8성향 막대 */
+.msc-bars { display: grid; gap: 7px; }
+.msc-bar { display: grid; grid-template-columns: 40px 1fr 28px; align-items: center; gap: 8px; }
+.msc-bar-name { font-size: 13px; font-weight: 600; color: var(--muted); }
+.msc-bar.primary .msc-bar-name { color: var(--ink); font-weight: 800; }
+.msc-bar-track { height: 10px; background: var(--paper); border-radius: 999px; overflow: hidden; }
+.msc-bar-fill { display: block; height: 100%; border-radius: 999px; }
+.msc-bar-val { font-size: 12px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+
+/* 행동 지표 */
+.msc-indices { display: grid; gap: 14px; }
+.msc-index-head { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+.msc-level { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+.msc-level-dots { display: inline-flex; gap: 4px; }
+.msc-level-dots span { width: 12px; height: 12px; border-radius: 999px; background: var(--line); }
+.msc-level-dots span.on { background: var(--yellow); }
+.msc-level b { font-size: 14px; }
+
+/* 그룹 지도 칩 */
+.msc-chips { display: grid; gap: 12px; margin-top: 16px; }
+.msc-chip-group { }
+.msc-chip-head { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 13px; }
+.msc-chip-dot { width: 12px; height: 12px; border-radius: 999px; display: inline-block; }
+.msc-chip-n { color: var(--muted); font-weight: 600; }
+.msc-chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.msc-chip {
+  border: 1.5px solid var(--line);
+  background: var(--card);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.msc-chip.sel { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
+/* 6축 그리드 맵 (공식 뇌인지행동유형맵) */
+.msc-map6-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 4px -4px 0; padding: 0 4px 4px; }
+.brain-map6 { display: block; width: 100%; min-width: 640px; height: auto; }
+.map6-ko { font-size: 12.5px; font-weight: 700; }
+.map6-en { font-size: 8.5px; }
+.map6-line { fill: none; stroke: #9a9088; stroke-width: 2; stroke-opacity: .35; stroke-linejoin: round; }
+.map6-line.sel { stroke: var(--ink); stroke-width: 3.5; stroke-opacity: 1; }
+.map6-dot { fill: var(--ink); }
+.map6-foot-ko { font-size: 12px; font-weight: 800; }
+.map6-foot-en { font-size: 8px; }
+
+/* 결과 지표 요약 */
+.msc-readout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 16px;
+  margin-top: 14px;
+}
+.msc-readout-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13.5px;
+}
+.msc-readout-dim { font-weight: 700; }

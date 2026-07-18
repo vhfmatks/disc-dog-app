@@ -173,25 +173,29 @@ function Intro({
             걸려 있든 아니든 **언제나** 나온다 — 걸려 있으면 이름을 대고 크게, 아니면
             조용히. 이 문구가 소급 노출의 유일한 짝이다. */}
       {sharedWith.length > 0 ? (
-        <div className="callout shared-notice" style={{marginTop: 18}}>
-          <b>이 스페이스의 결과는 다른 스페이스에도 표시됩니다</b>
-          <p className="small" style={{marginTop: 4}}>
-            아래 스페이스 구성원의 함께보기 지도에 이 스페이스의 닉네임과 강아지 유형이
-            보입니다. <b>이미 제출된 결과도 함께</b> 보입니다.
-          </p>
-          <ul className="shared-notice-list">
-            {sharedWith.map(viewer => (
-              <li key={viewer.id}>
-                <SpaceIcon iconId={safeIconId(viewer.icon_id)} size={22} decorative />
-                {viewer.name}
-              </li>
-            ))}
-          </ul>
-          <p className="small muted" style={{marginTop: 8}}>
-            넘어가는 건 지도에 뜨는 것과 같습니다 — 닉네임과 강아지 유형, 점수뿐입니다.
-            60문항에 어떻게 답했는지는 넘어가지 않습니다.
-          </p>
-        </div>
+        <details className="callout shared-notice" style={{marginTop: 18}}>
+          <summary className="shared-notice-summary">
+            <b>이 스페이스의 결과는 다른 스페이스에도 표시됩니다</b>
+          </summary>
+          <div className="shared-notice-body">
+            <p className="small">
+              아래 스페이스 구성원의 함께보기 지도에 이 스페이스의 닉네임과 강아지 유형이
+              보입니다. <b>이미 제출된 결과도 함께</b> 보입니다.
+            </p>
+            <ul className="shared-notice-list">
+              {sharedWith.map(viewer => (
+                <li key={viewer.id}>
+                  <SpaceIcon iconId={safeIconId(viewer.icon_id)} size={22} decorative />
+                  {viewer.name}
+                </li>
+              ))}
+            </ul>
+            <p className="small muted" style={{marginTop: 8}}>
+              넘어가는 건 지도에 뜨는 것과 같습니다 — 닉네임과 강아지 유형, 점수뿐입니다.
+              60문항에 어떻게 답했는지는 넘어가지 않습니다.
+            </p>
+          </div>
+        </details>
       ) : (
         <p className="small muted shared-later" style={{marginTop: 16}}>
           진행자가 나중에 다른 스페이스와 <b>함께보기</b>를 맺으면, 지금 내는 결과도 그쪽

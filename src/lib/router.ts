@@ -5,6 +5,8 @@ export type Route =
   | {kind: 'create'}
   | {kind: 'admin'}
   | {kind: 'profile'}
+  /** MSC 뇌인지 행동유형맵. MVP라 서버 스페이스 없이 localStorage로만 돈다. */
+  | {kind: 'msc'}
   | {kind: 'participant'; spaceId: string; passwordRequired?: true}
   /** withSpaceIds는 함께보기로 고른 스페이스. 비어 있으면 넣지 않는다. */
   | {kind: 'map'; spaceId: string; withSpaceIds?: string[]};
@@ -18,7 +20,7 @@ const SPACE_ID_RE = /^[a-z0-9-]{3,24}$/;
  * 사라졌지만, 목록에서 빼면 예전에 만들어진 코드가 스페이스 ID로 되살아나 라우팅이
  * 갈린다. 한 번 예약한 이름은 놓아주지 않는다.
  */
-const RESERVED_IDS = new Set(['admin', 'manage', 'map', 'new', 'profile']);
+const RESERVED_IDS = new Set(['admin', 'manage', 'map', 'msc', 'new', 'profile']);
 
 /** 함께보기 한 번에 고를 수 있는 외부 스페이스. _shared/view-grants.ts의 MAX_SOURCES와 같다. */
 export const MAX_WITH_SPACES = 9;
@@ -95,6 +97,7 @@ export function parseRoute(location: Location = window.location): Route {
   if (last === 'admin') return {kind: 'admin'};
   if (last === 'new') return {kind: 'create'};
   if (last === 'profile') return {kind: 'profile'};
+  if (last === 'msc') return {kind: 'msc'};
   if (last === 'map' && isSpaceId(previous)) return mapRoute(previous, location.search);
   if (isSpaceId(last)) {
     return passwordRequired
@@ -198,6 +201,11 @@ export function adminUrl(route?: Route): string {
 
 export function profileUrl(route?: Route): string {
   return new URL('profile', appBaseUrl(route)).href;
+}
+
+/** MSC 검사 진입점. 서버 스페이스가 없는 로컬 전용 화면이다. */
+export function mscUrl(route?: Route): string {
+  return new URL('msc', appBaseUrl(route)).href;
 }
 
 export function useRoute(): Route {

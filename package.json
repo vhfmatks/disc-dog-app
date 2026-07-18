@@ -7,7 +7,7 @@
   "scripts": {
     "config": "node scripts/gen-config.mjs",
     "test": "node --experimental-strip-types --test scripts/*.test.mjs",
-    "verify": "node scripts/verify-questions.mjs",
+    "verify": "node scripts/verify-questions.mjs && node --experimental-strip-types scripts/verify-msc.mjs",
     "typecheck": "tsc --noEmit",
     "dev": "npm run config && npm run verify && vite",
     "build": "npm run config && npm run verify && npm run typecheck && vite build",

@@ -46,6 +46,7 @@ interface Input {
   iconId?: string;
   nickname?: string;
   result?: Record<string, unknown>;
+  page?: number;
 }
 
 const publicView = (space: SpaceRecord) => ({
@@ -137,8 +138,14 @@ async function create(client: SupabaseClient, request: Request, input: Input): P
 }
 
 /** 비밀번호가 있고 최근 24시간 안에 결과가 올라온 스페이스만 공개한다. */
-async function listActive(client: SupabaseClient): Promise<Response> {
-  const {data, error} = await client.rpc('list_active_spaces', {p_limit: ACTIVE_SPACE_LIMIT});
+async function listActive(client: SupabaseClient, input: Input): Promise<Response> {
+  // 공개 목록은 최대 1,000페이지까지만 넘긴다. 그보다 큰 값도 오류 대신 마지막
+  // 허용 범위로 고정해, 클라이언트 입력 때문에 DB가 과도하게 건너뛰지 않게 한다.
+  const page = Math.max(0, Math.min(1000, Math.floor(Number(input.page) || 0)));
+  const {data, error} = await client.rpc('list_active_spaces', {
+    p_limit: ACTIVE_SPACE_LIMIT + 1,
+    p_offset: page * ACTIVE_SPACE_LIMIT
+  });
   if (error) {
     return fail(
       'error',
@@ -147,7 +154,13 @@ async function listActive(client: SupabaseClient): Promise<Response> {
       'ACTIVE_SPACES_FETCH_FAILED'
     );
   }
-  return json({ok: true, spaces: data || []});
+  const rows = data || [];
+  return json({
+    ok: true,
+    page,
+    spaces: rows.slice(0, ACTIVE_SPACE_LIMIT),
+    hasMore: rows.length > ACTIVE_SPACE_LIMIT
+  });
 }
 
 async function checkName(client: SupabaseClient, request: Request, input: Input): Promise<Response> {
@@ -483,7 +496,7 @@ Deno.serve(async request => {
   }
 
   const client = createClient(url, serviceRoleKey, {auth: {persistSession: false}});
-  if (input.action === 'list-active') return await listActive(client);
+  if (input.action === 'list-active') return await listActive(client, input);
   if (input.action === 'check-name') return await checkName(client, request, input);
   if (input.action === 'create') return await create(client, request, input);
   if (input.action === 'enter') return await enter(client, request, input);

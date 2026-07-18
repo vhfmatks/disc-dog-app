@@ -4,6 +4,7 @@ import {AdminApp} from './AdminApp.tsx';
 import {MapApp} from './MapApp.tsx';
 import {ParticipantApp} from './ParticipantApp.tsx';
 import {ProfileApp} from './ProfileApp.tsx';
+import {MscApp} from './tests/msc/MscApp.tsx';
 import {AppHeader} from './components/AppHeader.tsx';
 import {CopyButton} from './components/CopyButton.tsx';
 import {SpaceNameStatus, ValidationStatus} from './components/FieldStatus.tsx';
@@ -33,29 +34,51 @@ const redirectedPath = new URLSearchParams(window.location.search).get('__spa');
 if (redirectedPath?.startsWith('/')) window.history.replaceState(null, '', redirectedPath);
 
 type ActiveSpacesState =
-  | {status: 'loading'; spaces: ActiveSpaceRow[]}
-  | {status: 'ready'; spaces: ActiveSpaceRow[]}
-  | {status: 'error'; spaces: ActiveSpaceRow[]; message: string};
+  | {status: 'loading'; spaces: ActiveSpaceRow[]; page: number; hasMore: boolean; message?: string}
+  | {status: 'ready' | 'loading-more'; spaces: ActiveSpaceRow[]; page: number; hasMore: boolean; message?: string}
+  | {status: 'error'; spaces: ActiveSpaceRow[]; page: number; hasMore: boolean; message: string};
 
 const safeIconId = (value: string): SpaceIconId =>
   isSpaceIconId(value) ? value : DEFAULT_SPACE_ICON_ID;
 
 function HomeApp() {
   const [reload, setReload] = useState(0);
-  const [activeSpaces, setActiveSpaces] = useState<ActiveSpacesState>({status: 'loading', spaces: []});
+  const [activeSpaces, setActiveSpaces] = useState<ActiveSpacesState>({
+    status: 'loading', spaces: [], page: 0, hasMore: false
+  });
 
   useEffect(() => {
     let active = true;
-    setActiveSpaces(current => ({status: 'loading', spaces: current.spaces}));
-    fetchActiveSpaces().then(response => {
+    setActiveSpaces({status: 'loading', spaces: [], page: 0, hasMore: false});
+    fetchActiveSpaces(0).then(response => {
       if (!active) return;
       setActiveSpaces(response.ok
-        ? {status: 'ready', spaces: response.spaces}
-        : {status: 'error', spaces: [], message: response.error}
+        ? {status: 'ready', spaces: response.spaces, page: response.page, hasMore: response.hasMore}
+        : {status: 'error', spaces: [], page: 0, hasMore: false, message: response.error}
       );
     });
     return () => { active = false; };
   }, [reload]);
+
+  const loadMore = async () => {
+    if (activeSpaces.status !== 'ready' || !activeSpaces.hasMore) return;
+    const nextPage = activeSpaces.page + 1;
+    setActiveSpaces(current => current.status === 'ready'
+      ? {...current, status: 'loading-more', message: undefined}
+      : current
+    );
+    const response = await fetchActiveSpaces(nextPage);
+    setActiveSpaces(current => {
+      if (current.status !== 'loading-more') return current;
+      if (!response.ok) return {...current, status: 'ready', message: response.error};
+      return {
+        status: 'ready',
+        spaces: [...current.spaces, ...response.spaces],
+        page: response.page,
+        hasMore: response.hasMore
+      };
+    });
+  };
 
   return (
     <main className="wrap home-wrap home-with-spaces">
@@ -87,25 +110,40 @@ function HomeApp() {
           <div className="active-spaces-status">아직 진행 중인 스페이스가 없습니다.</div>
         )}
         {activeSpaces.spaces.length > 0 && (
-          <ul className="active-space-list">
-            {activeSpaces.spaces.map(space => (
-              <li key={space.id}>
-                <a className="active-space-card" href={spacePasswordUrl(space.id)}>
-                  <span className="active-space-icon" aria-hidden="true">
-                    <SpaceIcon iconId={safeIconId(space.icon_id)} size={54} decorative />
-                  </span>
-                  <span className="active-space-main">
-                    <strong>{space.name}</strong>
-                    <span className="active-space-code">/{space.id}</span>
-                    <span className="small muted">
-                      참여자 {space.participant_count}명 · {formatWhen(Date.parse(space.last_activity_at))} 활동
+          <>
+            <ul className="active-space-list">
+              {activeSpaces.spaces.map(space => (
+                <li key={space.id}>
+                  <a className="active-space-card" href={spacePasswordUrl(space.id)}>
+                    <span className="active-space-icon" aria-hidden="true">
+                      <SpaceIcon iconId={safeIconId(space.icon_id)} size={54} decorative />
                     </span>
-                  </span>
-                  <span className="active-space-enter">비밀번호 입력 <span aria-hidden="true">→</span></span>
-                </a>
-              </li>
-            ))}
-          </ul>
+                    <span className="active-space-main">
+                      <strong>{space.name}</strong>
+                      <span className="active-space-code">/{space.id}</span>
+                      <span className="small muted">
+                        참여자 {space.participant_count}명 · {formatWhen(Date.parse(space.last_activity_at))} 활동
+                      </span>
+                    </span>
+                    <span className="active-space-enter">비밀번호 입력 <span aria-hidden="true">→</span></span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+            {activeSpaces.hasMore && (
+              <div className="active-spaces-more">
+                <button
+                  type="button"
+                  className="btn ghost"
+                  disabled={activeSpaces.status === 'loading-more'}
+                  onClick={() => void loadMore()}
+                >
+                  {activeSpaces.status === 'loading-more' ? '불러오는 중…' : '더 보기'}
+                </button>
+                {activeSpaces.message && <p className="form-error" role="status">{activeSpaces.message}</p>}
+              </div>
+            )}
+          </>
         )}
       </section>
     </main>
@@ -516,6 +554,7 @@ function Screen({route}: {route: Route}) {
   if (route.kind === 'admin') return <AdminApp />;
   if (route.kind === 'create') return <CreateApp />;
   if (route.kind === 'profile') return <ProfileApp />;
+  if (route.kind === 'msc') return <MscApp />;
   if (route.kind === 'participant') {
     return (
       <SpaceScreen
@@ -538,7 +577,10 @@ function App() {
 
   return (
     <>
-      <AppHeader spaceId={route.kind === 'participant' ? route.spaceId : ''} />
+      <AppHeader
+        spaceId={route.kind === 'participant' ? route.spaceId : ''}
+        test={route.kind === 'msc' ? 'msc' : 'disc'}
+      />
       <Screen route={route} />
     </>
   );
