@@ -179,6 +179,21 @@ button { font: inherit; color: inherit; }
 .paw.done { fill: var(--ink); }
 .paw.todo { fill: var(--yellow); }
 
+/* 뇌인지 행동유형맵은 강아지 발바닥 대신 귀여운 반짝이 아이콘으로 응답 상태를 나타낸다. */
+.msc-progress-icons { gap: 2px; }
+.msc-progress-icon {
+  display: block;
+  width: 100%;
+  font-size: 12px;
+  line-height: 1;
+  text-align: center;
+  opacity: .2;
+  filter: grayscale(1);
+  transition: opacity .18s ease, filter .18s ease, transform .18s ease;
+}
+.msc-progress-icon.done { opacity: 1; filter: none; }
+.msc-progress-icon.todo { opacity: .9; filter: sepia(1) saturate(3) hue-rotate(350deg); transform: scale(1.08); }
+
 .progress-meta {
   display: flex;
   justify-content: space-between;
@@ -1934,3 +1949,9 @@ button { font: inherit; color: inherit; }
 .msc-share { display: flex; gap: 10px; }
 .msc-share .btn { flex: 1; }
 .msc-share-msg { margin-top: 10px; }
+
+/* 공통 결과 저장·공유 (개성 + MSC) */
+.share-block { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
+.share-actions { display: flex; gap: 10px; }
+.share-actions .btn { flex: 1; }
+.share-actions-msg { margin-top: 10px; }

@@ -340,7 +340,7 @@ function SpaceItem({space, busy, onUpdate, onDelete, onLoadResults}: SpaceItemPr
       <div className="admin-links">
         <a href={shareHref} target="_blank" rel="noreferrer">참가자 화면 ↗</a>
         <a href={mapHref} target="_blank" rel="noreferrer">지도 ↗</a>
-        <CopyButton value={shareHref} label="초대 링크 복사" className="" />
+        <CopyButton value={shareHref} label="개성 초대 링크 복사" className="" />
       </div>
       <ParticipantData spaceId={space.id} onLoad={() => onLoadResults(space.id)} />
     </article>

@@ -910,7 +910,7 @@ export function MapApp({space, token, shareUrl, withSpaceIds}: {
           <div className="counter"><span className="n">{visible.length}</span> 명</div>
           <div className="map-actions">
             <a className="btn ghost sm" href={spaceUrl(space.id)}>참가 링크 열기</a>
-            <CopyButton value={shareUrl} label="초대 링크 복사" className="btn ghost sm" />
+            <CopyButton value={shareUrl} label="개성 초대 링크 복사" className="btn ghost sm" />
           </div>
         </div>
         <p className="small muted" style={{marginTop: 4, color: status.error ? 'var(--d)' : undefined}}>{status.message}</p>

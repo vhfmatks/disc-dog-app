@@ -1,6 +1,5 @@
 import {useEffect, useMemo, useRef, useState} from 'react';
 import type {KeyboardEvent} from 'react';
-import {pawPath} from '../../../assets/data.ts';
 import {
   INDICATORS, MSC_ORDER, MSC_PAGES, MSC_PAGE_SIZE, MSC_Q, MSC_SCALE, MSC_TYPES,
   mscBlendNote, scoreMsc
@@ -11,9 +10,11 @@ import {MscMap6} from './MscMap6.tsx';
 import {MscDevBar} from './MscDevBar.tsx';
 import type {MapProfile} from './MscMap6.tsx';
 import {saveResultPng, shareResult} from './share.ts';
+import {CopyButton} from '../../components/CopyButton.tsx';
 import {clearMscDraft, loadMscStore, saveMscDraft, saveMscResult} from '../../lib/msc-store.ts';
 import type {MscDone} from '../../lib/msc-store.ts';
 import {NICKNAME_MAX} from '../../lib/nickname-rules.ts';
+import {mscUrl} from '../../lib/router.ts';
 
 type Screen = 'intro' | 'quiz' | 'result' | 'group';
 
@@ -218,7 +219,6 @@ function Quiz({answers, page, onAnswer, onPrevious, onNext, onReset}: QuizProps)
   const start = page * MSC_PAGE_SIZE;
   const indexes = MSC_Q.map((_, index) => index).slice(start, start + MSC_PAGE_SIZE);
   const done = indexes.filter(index => answers[index]).length;
-  const paw = pawPath();
 
   const handleArrow = (event: KeyboardEvent<HTMLButtonElement>, questionIndex: number, value: number) => {
     const direction = ({ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1} as Record<string, number>)[event.key];
@@ -233,14 +233,12 @@ function Quiz({answers, page, onAnswer, onPrevious, onNext, onReset}: QuizProps)
   return (
     <section>
       <div className="progress">
-        <div className="paws" role="img" aria-label="진행 상황">
+        <div className="paws msc-progress-icons" role="img" aria-label="진행 상황">
           {MSC_Q.map((_, index) => {
             const onPage = index >= start && index < start + MSC_PAGE_SIZE;
-            const className = `paw ${answers[index] ? 'done' : ''} ${!answers[index] && onPage ? 'todo' : ''}`;
+            const className = `msc-progress-icon ${answers[index] ? 'done' : ''} ${!answers[index] && onPage ? 'todo' : ''}`;
             return (
-              <svg className={className} viewBox="0 0 100 100" aria-hidden="true" key={index}>
-                <path d={paw} />
-              </svg>
+              <span className={className} aria-hidden="true" key={index}>✨</span>
             );
           })}
         </div>
@@ -306,6 +304,7 @@ export function MscApp() {
   const [result, setResult] = useState<MscResult | null>(null);
   const [done, setDone] = useState<MscDone[]>(stored.done);
   const meIdRef = useRef('');
+  const shareUrl = mscUrl();
 
   // 한 문항 고를 때마다 draft를 덮어쓴다. 한 문항도 안 골랐으면 저장하지 않는다.
   useEffect(() => {
@@ -373,6 +372,24 @@ export function MscApp() {
               disabled={!nickname.trim()}
               onClick={() => setScreen('quiz')}
             >시작하기</button>
+          </div>
+
+          <div className="share-box msc-link-share">
+            <label htmlFor="msc-share-url">뇌인지유형맵 링크</label>
+            <div className="share-row">
+              <input
+                id="msc-share-url"
+                className="input"
+                readOnly
+                value={shareUrl}
+                onFocus={event => event.target.select()}
+              />
+              <CopyButton value={shareUrl} label="링크 복사" className="btn" />
+            </div>
+            <p className="small muted">
+              각자가 자기 기기에서 검사하는 개인형 링크입니다. 링크를 받은 사람의 결과는 그 사람 브라우저에만 저장되며,
+              이 기기의 전체 지도에는 자동으로 합쳐지지 않습니다.
+            </p>
           </div>
 
           {done.length > 0 && (

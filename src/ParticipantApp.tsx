@@ -9,12 +9,14 @@ import {CopyButton} from './components/CopyButton.tsx';
 import {DogFace} from './components/DogFace.tsx';
 import {PersonalResult} from './components/PersonalResult.tsx';
 import {SpaceIcon} from './components/SpaceIcon.tsx';
+import {ShareActions} from './components/ShareActions.tsx';
 import {DevBar} from './dev/DevBar.tsx';
 import {
   DONE_MAX, clearDraft, doneSetToEvict, formatWhen, loadStore, saveDoneSet, saveDraft
 } from './lib/answer-store.ts';
 import type {DoneSet, Draft} from './lib/answer-store.ts';
 import {checkNickname, saveResult} from './lib/db.ts';
+import {saveDiscPng, shareDiscResult} from './lib/disc-share.ts';
 import type {SpaceRow, SpaceSummary} from './lib/db.ts';
 import {NICKNAME_MAX, validateNickname} from './lib/nickname-rules.ts';
 import {profileUrl, spaceMapUrl, spaceUrl} from './lib/router.ts';
@@ -273,7 +275,7 @@ function Intro({
 
       <div className="invite-row">
         <span className="small muted">아직 안 온 사람이 있나요?</span>
-        <CopyButton value={shareUrl} label="초대 링크 복사" />
+        <CopyButton value={shareUrl} label="개성 초대 링크 복사" />
       </div>
     </section>
   );
@@ -542,6 +544,7 @@ function SaveStateBar({state, onRetry, onRetryNickname}: {
 
 interface ResultProps {
   result: ScoreResult;
+  nickname: string;
   saveState: SaveStatus;
   spaceId: string;
   onRetry: () => void;
@@ -549,7 +552,7 @@ interface ResultProps {
   onAgain: () => void;
 }
 
-function Result({result, saveState, spaceId, onRetry, onRetryNickname, onAgain}: ResultProps) {
+function Result({result, nickname, saveState, spaceId, onRetry, onRetryNickname, onAgain}: ResultProps) {
   return (
     <section aria-live="polite">
       <PersonalResult result={result} />
@@ -573,6 +576,17 @@ function Result({result, saveState, spaceId, onRetry, onRetryNickname, onAgain}:
         이 도구는 자기 이해와 팀 커뮤니케이션을 위한 워크숍용입니다.<br />
         채용·평가·배치의 근거로 쓰지 마세요.
       </p>
+
+      <div className="share-block">
+        <p className="section-title" style={{marginBottom: 10}}>내 결과 저장·공유</p>
+        <ShareActions
+          onShare={() => shareDiscResult(result, nickname)}
+          onSave={() => saveDiscPng(result, nickname)}
+        />
+        <p className="small muted center" style={{marginTop: 10}}>
+          결과 강아지·네 가지 성향·매력과 짖음을 담은 이미지 한 장으로 저장하거나 공유합니다.
+        </p>
+      </div>
     </section>
   );
 }
@@ -735,6 +749,7 @@ export function ParticipantApp({space, token, shareUrl, sharedWith}: {
       {screen === 'result' && result && (
         <Result
           result={result}
+          nickname={nickname}
           saveState={saveState}
           spaceId={room}
           onRetry={() => void persist(result)}

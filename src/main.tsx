@@ -161,18 +161,18 @@ function SpaceCreated({space, token}: {space: SpaceRow; token: string}) {
 
   return (
     <main className="wrap home-wrap">
-      <section className="card">
-        <p className="eyebrow">READY</p>
+        <section className="card">
+          <p className="eyebrow">READY</p>
         <div className="created-space-title">
           <SpaceIcon iconId={safeIconId(space.icon_id)} size={64} decorative />
           <h1>{space.name}</h1>
         </div>
-        <p className="muted admin-lead">
-          스페이스가 열렸습니다. 팀원이나 친구에게 초대 링크를 보내세요.
-        </p>
+          <p className="muted admin-lead">
+            개성 스페이스가 열렸습니다. 팀원이나 친구에게 초대 링크를 보내 함께 결과를 확인하세요.
+          </p>
 
         <div className="share-box">
-          <label htmlFor="share-url">초대 링크</label>
+          <label htmlFor="share-url">개성 스페이스 초대 링크</label>
           <div className="share-row">
             <input
               id="share-url"
@@ -190,8 +190,8 @@ function SpaceCreated({space, token}: {space: SpaceRow; token: string}) {
             </Suspense>
           </div>
           <p className="small muted">
-            링크와 QR에는 출입증이 들어 있습니다. 연 사람은 비밀번호 없이 바로 참여합니다 —
-            그러니 아무나 보는 곳에 올리거나 띄워두지 마세요.
+            링크와 QR에는 출입증이 들어 있습니다. 링크를 받은 사람은 비밀번호 없이 같은 스페이스에 참여하고,
+            결과가 이 스페이스 관계도에 함께 표시됩니다. 그러니 아무나 보는 곳에 올리거나 띄워두지 마세요.
           </p>
         </div>
 

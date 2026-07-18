@@ -6,6 +6,8 @@
 
 import {INDICATORS, MSC_ORDER, MSC_TYPES} from './data.ts';
 import type {MscResult} from './data.ts';
+import {downloadPng, sharePngImage} from '../../lib/share-image.ts';
+import type {ShareOutcome} from '../../lib/share-image.ts';
 
 const W = 1080;
 const H = 1600;
@@ -114,76 +116,16 @@ export function buildShareSvg(result: MscResult, nickname: string): {svg: string
   return {svg, w: W, h: H};
 }
 
-export function svgToPngBlob(svg: string, w: number, h: number, scale = 2): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const blob = new Blob([svg], {type: 'image/svg+xml;charset=utf-8'});
-    const url = URL.createObjectURL(blob);
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = w * scale;
-      canvas.height = h * scale;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) { URL.revokeObjectURL(url); reject(new Error('canvas 컨텍스트를 만들지 못했습니다')); return; }
-      ctx.scale(scale, scale);
-      ctx.drawImage(img, 0, 0, w, h);
-      URL.revokeObjectURL(url);
-      canvas.toBlob(b => (b ? resolve(b) : reject(new Error('PNG 변환에 실패했습니다'))), 'image/png');
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('이미지를 그리지 못했습니다')); };
-    img.src = url;
-  });
-}
-
 const fileName = (nickname: string) => `뇌인지행동유형_${(nickname.trim() || '나').replace(/\s+/g, '')}.png`;
 
 export async function saveResultPng(result: MscResult, nickname: string): Promise<void> {
   const {svg, w, h} = buildShareSvg(result, nickname);
-  const blob = await svgToPngBlob(svg, w, h);
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName(nickname);
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  await downloadPng(svg, w, h, fileName(nickname));
 }
-
-export type ShareOutcome = 'shared' | 'copied' | 'downloaded' | 'cancelled';
 
 export async function shareResult(result: MscResult, nickname: string): Promise<ShareOutcome> {
   const type = MSC_TYPES[result.primary];
   const text = `${nickname.trim() || '나'}님의 뇌인지 행동유형: ${type.name} (${result.code})`;
-  const nav = navigator as Navigator & {
-    canShare?: (data?: {files?: File[]}) => boolean;
-    share?: (data: {title?: string; text?: string; files?: File[]}) => Promise<void>;
-  };
-
-  try {
-    const {svg, w, h} = buildShareSvg(result, nickname);
-    const blob = await svgToPngBlob(svg, w, h);
-    const file = new File([blob], fileName(nickname), {type: 'image/png'});
-
-    if (nav.canShare?.({files: [file]}) && nav.share) {
-      await nav.share({title: '뇌인지 행동유형맵', text, files: [file]});
-      return 'shared';
-    }
-    if (nav.share) {
-      await nav.share({title: '뇌인지 행동유형맵', text});
-      return 'shared';
-    }
-    // 공유 API가 없으면 이미지를 내려받는 것으로 대신한다.
-    await saveResultPng(result, nickname);
-    return 'downloaded';
-  } catch (error) {
-    if ((error as Error).name === 'AbortError') return 'cancelled';
-    // 최후 수단: 텍스트라도 클립보드에.
-    try {
-      await navigator.clipboard.writeText(text);
-      return 'copied';
-    } catch {
-      throw error;
-    }
-  }
+  const {svg, w, h} = buildShareSvg(result, nickname);
+  return sharePngImage(svg, w, h, fileName(nickname), text);
 }
