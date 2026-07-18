@@ -10,6 +10,7 @@ import {BrainWheel} from './BrainWheel.tsx';
 import {MscMap6} from './MscMap6.tsx';
 import {MscDevBar} from './MscDevBar.tsx';
 import type {MapProfile} from './MscMap6.tsx';
+import {saveResultPng, shareResult} from './share.ts';
 import {clearMscDraft, loadMscStore, saveMscDraft, saveMscResult} from '../../lib/msc-store.ts';
 import type {MscDone} from '../../lib/msc-store.ts';
 import {NICKNAME_MAX} from '../../lib/nickname-rules.ts';
@@ -24,8 +25,59 @@ const toNodes = (done: MscDone[]) =>
 const toProfiles = (done: MscDone[]): MapProfile[] =>
   done.map(d => ({id: d.id, nickname: d.nickname, levels: d.levels}));
 
-function MscResultView({result, done, meId, onGroup, onAgain}: {
+function ShareBar({result, nickname}: {result: MscResult; nickname: string}) {
+  const [busy, setBusy] = useState<'' | 'share' | 'png'>('');
+  const [msg, setMsg] = useState('');
+
+  const runShare = async () => {
+    setBusy('share');
+    setMsg('');
+    try {
+      const outcome = await shareResult(result, nickname);
+      setMsg(
+        outcome === 'copied' ? '결과 요약을 클립보드에 복사했습니다.'
+        : outcome === 'downloaded' ? '공유가 안 되어 이미지로 저장했습니다.'
+        : outcome === 'shared' ? '공유했습니다.'
+        : ''
+      );
+    } catch {
+      setMsg('공유하지 못했습니다. 다시 시도해주세요.');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const runSave = async () => {
+    setBusy('png');
+    setMsg('');
+    try {
+      await saveResultPng(result, nickname);
+      setMsg('PNG 이미지로 저장했습니다.');
+    } catch {
+      setMsg('저장하지 못했습니다. 다시 시도해주세요.');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  return (
+    <>
+      <div className="msc-share">
+        <button type="button" className="btn ghost" disabled={busy !== ''} onClick={() => void runShare()}>
+          {busy === 'share' ? '준비 중…' : '결과 공유하기'}
+        </button>
+        <button type="button" className="btn ghost" disabled={busy !== ''} onClick={() => void runSave()}>
+          {busy === 'png' ? '저장 중…' : 'PNG로 저장'}
+        </button>
+      </div>
+      {msg && <p className="small muted center msc-share-msg" role="status">{msg}</p>}
+    </>
+  );
+}
+
+function MscResultView({result, nickname, done, meId, onGroup, onAgain}: {
   result: MscResult;
+  nickname: string;
   done: MscDone[];
   meId: string;
   onGroup: () => void;
@@ -92,6 +144,14 @@ function MscResultView({result, done, meId, onGroup, onAgain}: {
         이 도구는 자기 이해와 팀 커뮤니케이션을 위한 워크숍용입니다.<br />
         채용·평가·배치의 근거로 쓰지 마세요.
       </p>
+
+      <div className="msc-share-wrap">
+        <p className="section-title" style={{marginBottom: 10}}>내 결과 저장·공유</p>
+        <ShareBar result={result} nickname={nickname} />
+        <p className="small muted center" style={{marginTop: 10}}>
+          결과를 요약한 이미지 한 장으로 저장하거나 공유합니다.
+        </p>
+      </div>
     </section>
   );
 }
@@ -343,6 +403,7 @@ export function MscApp() {
       {screen === 'result' && result && (
         <MscResultView
           result={result}
+          nickname={nickname}
           done={done}
           meId={meIdRef.current}
           onGroup={() => setScreen('group')}

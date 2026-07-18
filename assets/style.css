@@ -1928,3 +1928,9 @@ button { font: inherit; color: inherit; }
   font-size: 13.5px;
 }
 .msc-readout-dim { font-weight: 700; }
+
+/* 결과 저장·공유 (최하단) */
+.msc-share-wrap { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
+.msc-share { display: flex; gap: 10px; }
+.msc-share .btn { flex: 1; }
+.msc-share-msg { margin-top: 10px; }
